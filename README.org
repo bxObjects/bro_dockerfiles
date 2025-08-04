@@ -1,0 +1,149 @@
+#+TITLE: Vagrant Debian BaseBoxes
+#+DATE: <2025-06-28 Sat 20:18>
+#+AUTHOR: Mohsen BANAN
+
+As a BRO_ (BISOS Repo Object), this repo contains various vagrant base box
+specifications for creation of qemu based Debian Base Boxes.
+
+These specifications are structured in a common hierarchy designed to be processed by
+the /bisos.vagrantBaseBoxes/ python package.
+Before using these specifications, you should familiarize yourself with https://github.com/bisos-pip/vagrantBaseBoxes.
+
+/bisos.vagrantBaseBoxes/ is data driven. This repo is its data. You need to use
+/bisos.vagrantBaseBoxes/ to build the base boxes specified in this repo.
+
+* Table of Contents     :TOC:
+- [[#scope-of-this-repo][Scope of This Repo]]
+- [[#structure-of-this-repo][Structure of This Repo]]
+- [[#build-add-run-and-clean-process][Build, Add, Run and Clean Process]]
+- [[#bisos-platform-usage][BISOS Platform Usage]]
+- [[#standalone-preparations-and-usage][Standalone Preparations and Usage]]
+  - [[#install-packer-19-and-vagrant-23][Install Packer 1.9+ and Vagrant 2.3+]]
+  - [[#qemu-kvm-usage][QEMU-KVM usage]]
+- [[#debian-preseed][Debian Preseed]]
+- [[#related-resources][Related Resources]]
+
+* Scope of This Repo
+
+This scope of this repo is qemu as provider and debian as distro.
+Currenty we target
+
+-  [[https://www.debian.org/releases/trixie][Debian 13 (Trixie)]]
+-  [[https://www.debian.org/releases/bookworm/][Debian 12 (Bookworm)]]
+
+* Structure of This Repo
+
+For base box specifications, the structure of qemu in this repo is:\\
+<publisher>/<provider>/<distro>/<majorRelease>/<minorRelease>/<cpuArch>/<boxCapability>/<boxSelector>
+
+Here are some concrete mappings:
+
+| <publisher>     | bro_vagrantDebianBaseBoxes | bx  | vagrantBaseBoxes is aware of abbrevs     |
+| <provider>      | qemu                       |     | perhaps virtualbox later                 |
+| <distro>        | debian                     | deb | perhaps ubuntu later                     |
+| <majorRelease>  | 13                         |     | 13 and 12 currently                      |
+| <minorRelease>  | trixie                     |     | Prior to release we go by name           |
+| <cpuArch>       | amd64                      |     | For now just amd64                       |
+| <boxCapability> | netinst                    |     | Refers to boxes content and capabilities |
+| <boxSelector>   | us                         |     | Variations on capability, eg US keyboard |
+
+The above, describes the hierarchy of qemu in this repo which reflects the perspective of the user.
+
+The developer perspective is reflected in the poly hierarchy.
+The structure of poly in this repo is:\\
+<publisher>/poly/<distro>/<majorRelease>/<boxCapability>
+
+Here are some concrete mappings:
+
+| <publisher>     | bro_vagrantDebianBaseBoxes | vagrantBaseBoxes is aware of abbrevs     |
+| poly            | poly                       |                 |
+| <distro>        | debian                     | perhaps ubuntu later                     |
+| <majorRelease>  | 13                         | 13 and 12 currently                      |
+| <boxCapability> | netinst                    | Refers to boxes content and capabilities |
+
+The "<boxCapability>" (eg netinst) contains information for configuration of
+multiple environments.
+
+For the example of qemu+debian-13+netinst+us, consider the content of:\\
+https://github.com/bxObjects/bro_vagrantDebianBaseBoxes/tree/main/qemu/debian/13/trixie/amd64/netinst
+
+In that directory, the us.pkr.hcl file is a symlink to:\\
+../../../../../../poly/debian/13/netinst/13.trixie-netinst_us.pkr.hcl
+which points to the base for multi-configuration of this specific base box specification.
+
+The management of the relative symlinks and execution of the build process is wrapped in:\\
+https://github.com/bxObjects/bro_vagrantDebianBaseBoxes/blob/main/qemu/debian/13/trixie/amd64/netinst/vagBox.cs
+
+vagBox.cs is a planted CS (Command Service) whose seed is bisos.vagrantBaseBoxes's vagrantBoxProc.cs.
+
+
+* Build, Add, Run and Clean Process
+
+After having installed bisos.vagrantBaseBoxes python package, you can build, add, run and clean
+each of the boxes.
+
+* BISOS Platform Usage
+
+bro_vagrantDebianBaseBoxes are part of BISOS (ByStar Internet Services OS).
+A BISOS-Platform includes everything needed for processing the vagrant base box specifications.
+
+* Standalone Preparations and Usage
+
+When using /bisos.vagrantBaseBoxes/ and bro_vagrantDebianBaseBoxes outside of BISOS,
+you need to also install the following packages.
+
+** Install Packer 1.9+ and Vagrant 2.3+
+
+** QEMU-KVM usage
+
+Install qemu-kvm:
+
+#+BEGIN_SRC bash
+apt-get install -y qemu-kvm
+apt-get install -y sysfsutils
+systool -m kvm_intel -v
+#+END_SRC
+
+Type `make build-libvirt` and follow the instructions.
+
+Try the example guest:
+
+#+BEGIN_SRC bash
+cd example
+apt-get install -y virt-manager libvirt-dev
+vagrant plugin install vagrant-libvirt # see https://github.com/vagrant-libvirt/vagrant-libvirt
+vagrant up --provider=libvirt --no-destroy-on-error
+vagrant ssh
+exit
+vagrant destroy -f
+#+END_SRC
+
+
+* Debian Preseed
+
+The debian installation iso uses the [[https://wiki.debian.org/DebianInstaller][debian installer]] (aka d-i) to install
+debian. During the installation it will ask you some questions and it will also
+store your answers in the debconf database. After the installation is complete,
+you can see its contents with the following commands:
+
+#+BEGIN_SRC bash
+sudo su -l
+apt-get install debconf-utils
+debconf-get-selections --installer
+less /var/log/installer/syslog
+ls -la /var/log/installer/cdebconf
+#+END_SRC
+
+In reality, before d-i asks a question, it will first look for the answer in its
+database, if its there, it will automatically continue the installation without
+asking the question at all.
+
+To automate the installation, the database is populated from a preseed.txt text
+file. d-i will get its location from the kernel command line `url` argument.
+Which will be a http address served by packer during the machine provisioning.
+
+
+* Related Resources
+
+- Debian Bookworm [[https://www.debian.org/releases/bookworm/amd64/apb.en.html][Appendix B. Automating the installation using preseeding]]
+- Debian Bookworm [[https://www.debian.org/releases/bookworm/example-preseed.txt][example-preseed.txt]]
