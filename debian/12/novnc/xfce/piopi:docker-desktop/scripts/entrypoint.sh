@@ -8,6 +8,7 @@ function ctrl_c() {
 }
 # entrypoint.sh file for starting the xvfb with better screen resolution, configuring and running the vnc server.
 rm /tmp/.X1-lock 2> /dev/null &
+rm /tmp/.X11-unix/X1 2> /dev/null &
 rm ~/.Xauthority ~/.Xauthority-n
 xauth generate $DISPLAY . trusted
 # /opt/noVNC/utils/launch.sh --vnc localhost:$VNC_PORT --listen $NO_VNC_PORT &

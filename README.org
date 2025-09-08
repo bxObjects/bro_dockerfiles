@@ -1,9 +1,11 @@
-#+TITLE: Vagrant Debian BaseBoxes
+#+TITLE: Docker Containers Debian Images
 #+DATE: <2025-06-28 Sat 20:18>
 #+AUTHOR: Mohsen BANAN
 
 As a BRO_ (BISOS Repo Object), this repo contains various vagrant base box
-specifications for creation of qemu based Debian Base Boxes.
+specifications for creation of a variety of Docker Containers.
+
+This file was lifted from vagrantBaseBoxes and needs to be redone.
 
 These specifications are structured in a common hierarchy designed to be processed by
 the /bisos.vagrantBaseBoxes/ python package.

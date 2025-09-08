@@ -1,5 +1,32 @@
 FROM debian:12.11
 
+# ENPSX Specific
+
+ENV PYTHONUNBUFFERED 1
+
+RUN mkdir /code
+
+WORKDIR /code
+
+COPY requirements.txt enm_client_scripting-1.22.2-py2.py3-none-any.whl ./
+
+RUN apt-get update && \
+    apt-get install -y apt-utils && \
+    apt-get install -y openssl && \
+    apt-get install -y build-essential libffi-dev python3-dev && \
+    apt-get install -y libsasl2-dev libldap2-dev libssl-dev && \
+    apt-get install -y default-libmysqlclient-dev && \
+    apt-get install -y python3-django-auth-ldap && \
+    apt-get install -y nano && \
+    apt-get install -y cron && \
+    apt-get install -y sshpass && \
+    apt-get install -y emacs && \
+    apt-get install -y openssh-server  
+
+# RUN pip install --upgrade pip && pip install -r requirements.txt
+
+# SSH, NoVNC and VNC access
+# Install dependencies for VNC and NoVNC
 ENV DISPLAY=:1 \
     VNC_PORT=5901 \
     NO_VNC_PORT=6901 \
