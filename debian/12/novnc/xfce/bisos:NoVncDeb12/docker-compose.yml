@@ -1,0 +1,25 @@
+services:
+
+  desktop:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+
+    image: bisos/deb12-fresh-xfce:1.2.3
+    # image: bisos/novnc-xfce-deb12:1.2.2
+    container_name: mb-deb12-fresh-xfce-2
+
+    # command: bash -c "tail -F /dev/null"
+    # volumes:
+      # - .:/code
+      # - /tmp:/tmp
+      # - /etc/localtime:/etc/localtime:ro
+      # - ./filestore:/filestore
+    # restart: no
+
+    ports:
+      # - "2222:22"    # SSH
+      - "5901:5901"    # VNC
+      - "6901:6901"    # NoVNC
+
+# Just run::  docker compose up -d
