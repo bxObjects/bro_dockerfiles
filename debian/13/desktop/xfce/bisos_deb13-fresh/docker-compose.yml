@@ -1,0 +1,24 @@
+services:
+
+  desktop:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+
+    image: bisos/deb13-fresh-vnc-xfce:1.4
+    container_name: mb-deb13-fresh-xfce-3
+
+    # command: bash -c "tail -F /dev/null"
+    # volumes:
+      # - .:/code
+      # - /tmp:/tmp
+      # - /etc/localtime:/etc/localtime:ro
+      # - ./filestore:/filestore
+    # restart: no
+
+    ports:
+      # - "2222:22"    # SSH
+      - "5901:5901"    # VNC
+      - "6901:6901"    # NoVNC
+
+# Just run::  docker compose up -d

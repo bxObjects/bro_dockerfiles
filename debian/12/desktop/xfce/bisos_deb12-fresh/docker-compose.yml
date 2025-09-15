@@ -1,0 +1,22 @@
+services:
+
+  desktop:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+
+    image: bisos/deb12-fresh-vnc-xfce:1.18
+    container_name: mb-deb12-fresh-xfce-19
+
+    volumes:
+       - ./:/shuttle/this
+       # - /var/bisos/docker/:/shuttle/var
+
+    # restart: no
+
+    ports:
+      - "2222:22"    # SSH
+      - "5901:5901"    # VNC
+      - "6901:6901"    # NoVNC
+
+# Just run:: docker compose up -d
