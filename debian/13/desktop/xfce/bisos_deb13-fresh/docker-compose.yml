@@ -5,20 +5,18 @@ services:
       context: .
       dockerfile: ./Dockerfile
 
-    image: bisos/deb13-fresh-vnc-xfce:1.4
-    container_name: mb-deb13-fresh-xfce-3
+    image: bisos/deb13-fresh-vnc-xfce:4
+    container_name: mb-deb13-fresh-xfce-4
 
-    # command: bash -c "tail -F /dev/null"
-    # volumes:
-      # - .:/code
-      # - /tmp:/tmp
-      # - /etc/localtime:/etc/localtime:ro
-      # - ./filestore:/filestore
+    volumes:
+       - ./:/shuttle/this
+       # - /var/bisos/docker/:/shuttle/var
+
     # restart: no
 
     ports:
-      # - "2222:22"    # SSH
+      - "2222:22"    # SSH
       - "5901:5901"    # VNC
       - "6901:6901"    # NoVNC
 
-# Just run::  docker compose up -d
+# Just run:: docker compose up -d

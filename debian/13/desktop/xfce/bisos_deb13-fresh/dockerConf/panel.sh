@@ -1,5 +1,9 @@
 #!/bin/bash
 
+exit 0
+
+# NOTYET, Revist later
+
 # Adds launchers to the xfce panel.
 # Approach from:
 #   https://forum.xfce.org/viewtopic.php?id=8619
@@ -7,24 +11,18 @@
 # Run by the panel.desktop item that is placed
 # into the .config/autostart directory by the Dockerfile.
 
-if [ ! -e /home/student/.config/xfce4/panel/launcher-50 ];
+if [ ! -e $HOME/.config/xfce4/panel/launcher-50 ];
 then
-  mkdir -p /home/student/.config/xfce4/panel/launcher-50
-  cp /usr/share/applications/mousepad.desktop /home/student/.config/xfce4/panel/launcher-50
+  mkdir -p $HOME/.config/xfce4/panel/launcher-50
+  cp /usr/share/applications/mousepad.desktop $HOME/.config/xfce4/panel/launcher-50
 
-  mkdir -p /home/student/.config/xfce4/panel/launcher-51
-  cp /usr/share/applications/codium.desktop /home/student/.config/xfce4/panel/launcher-51
-
-  mkdir -p /home/student/.config/xfce4/panel/launcher-52
-  cp /usr/share/applications/firefox-esr.desktop /home/student/.config/xfce4/panel/launcher-52
+  mkdir -p $HOME/.config/xfce4/panel/launcher-52
+  cp /usr/share/applications/firefox-esr.desktop $HOME/.config/xfce4/panel/launcher-52
 
   xfce4-panel -r
   xfconf-query -c xfce4-panel -p /plugins/plugin-50 -t string -s "launcher" --create
   xfconf-query -c xfce4-panel -p /plugins/plugin-50/items -t string -s "mousepad.desktop" -a --create
 
-  xfconf-query -c xfce4-panel -p /plugins/plugin-51 -t string -s "launcher" --create
-  xfconf-query -c xfce4-panel -p /plugins/plugin-51/items -t string -s "codium.desktop" -a --create
-  
   xfconf-query -c xfce4-panel -p /plugins/plugin-52 -t string -s "launcher" --create
   xfconf-query -c xfce4-panel -p /plugins/plugin-52/items -t string -s "firefox-esr.desktop" -a --create
 
