@@ -2,8 +2,8 @@
 Encoding=UTF-8
 Version=0.9.4
 Type=Application
-Name=FD2PanelUpdate
-Comment=blah
+Name=BisosVncPanelUpdate
+Comment=Configures XFCE4 panel launchers on startup
 Exec=/home/bystar/dockerConf/panel.sh
 OnlyShowIn=XFCE;
 RunHook=0

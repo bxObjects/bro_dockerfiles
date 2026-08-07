@@ -1,0 +1,32 @@
+services:
+
+  vnc:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+
+    image: bisos/deb13-sysd-vnc-xfce:1
+    container_name: mb-deb13-sysd-xfce-1
+
+    privileged: true
+    cgroupns: host
+
+    volumes:
+       - ./:/shuttle/this
+       - /sys/fs/cgroup:/sys/fs/cgroup:rw
+       - /sys/fs/fuse:/sys/fs/fuse
+
+    tmpfs:
+      - /tmp
+      - /run
+      - /run/lock
+      - /var/log/journal
+
+    stop_signal: SIGRTMIN+3
+
+    ports:
+      - "2224:22"      # SSH
+      - "5903:5901"    # VNC
+      - "6903:6901"    # NoVNC
+
+# Just run:: docker compose up -d

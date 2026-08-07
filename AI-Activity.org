@@ -1,0 +1,58 @@
+#+title: AI Activity Guidance --- custom (Per-Project Template)
+
+This file was installed as the starting template for the =custom=
+activity. The =custom= activity is the escape hatch for a project whose
+conventions are not covered by any of the standard activities (=basic=,
+=bisos-pip=, =xu-single=, =blee-panels=, =lcnt=, etc.) --- rather than
+symlinking a shared =AI-Activity.org= that would apply globally, this
+activity assumes each project owns its own copy and edits it freely.
+
+* Installing the custom Activity
+
+The intended install form uses =--noLink=AI-Activity.org= so this file
+is safe-copied rather than symlinked:
+
+: aiActivity.cs -i initiate --activity=custom --noLink=AI-Activity.org
+
+(Or =initiateSub= with the same flag, for a subproject overlay.)
+
+Without =--noLink=AI-Activity.org=, =AI-Activity.org= would install as
+a symlink to the shared template. Any edits you made would then bleed
+into every other project also using =custom=. That's the wrong
+semantics for a per-project template --- hence the =--noLink= form.
+
+If you installed without =--noLink= and are reading this via the
+symlink, break the symlink now: =rm AI-Activity.org && cp
+<templates>/custom/AI-Activity.org AI-Activity.org=. Or run
+=deClaudify= and re-run =initiate= with =--noLink=.
+
+* Filling In This File
+
+Below this line, replace the placeholder sections with this project's
+actual conventions. Everything above is orientation for whoever reads
+this next --- keep it or delete it as suits you.
+
+** Project Purpose
+
+  [Brief one-paragraph description of what this project does.]
+
+** Conventions and Preferences
+
+  [Language, libraries, tooling. E.g.: "Python 3.11; type hints
+  encouraged for new code; no linting gate; smoke-test via
+  ./test/verify.sh."]
+
+** Where Things Live
+
+  [Key directories and files. Point at design docs, primary READMEs,
+  external references a fresh Claude session should know before doing
+  substantive work.]
+
+** Anything Non-Obvious
+
+  [Constraints, gotchas, historical decisions, in-progress migrations,
+  external dependencies. Anything that would surprise a fresh reader.]
+
+# Local Variables:
+# eval: (setq-local toc-org-max-depth 4)
+# End:

@@ -1,151 +1,191 @@
-#+TITLE: Docker Containers Debian Images
-#+DATE: <2025-06-28 Sat 20:18>
+#+TITLE: bro_dockerfiles --- BISOS Docker Image Specifications
+#+DATE: <2026-08-07 Thu>
 #+AUTHOR: Mohsen BANAN
+#+OPTIONS: toc:4
 
-As a BRO_ (BISOS Repo Object), this repo contains various vagrant base box
-specifications for creation of a variety of Docker Containers.
+As a BRO (BISOS Repo Object), this repo contains Dockerfile specifications
+for building BISOS Docker container images.
 
-This file was lifted from vagrantBaseBoxes and needs to be redone.
+Images are organized along two privilege dimensions:
 
-These specifications are structured in a common hierarchy designed to be processed by
-the /bisos.vagrantBaseBoxes/ python package.
-Before using these specifications, you should familiarize yourself with https://github.com/bisos-pip/vagrantBaseBoxes.
+- *confined* :: Unprivileged containers. No systemd. VNC/noVNC/sshd started
+  directly via =entrypoint.sh=. Safe to run anywhere.
 
-/bisos.vagrantBaseBoxes/ is data driven. This repo is its data. You need to use
-/bisos.vagrantBaseBoxes/ to build the base boxes specified in this repo.
+- *privileged* :: Full =--privileged= containers with systemd as PID 1.
+  VNC/noVNC/sshd managed as systemd units. Socket activation works.
+  Behaves as close to a VM as possible. Intended for trusted dev environments.
+
+Each variant targets Debian 12 (Bookworm) and Debian 13 (Trixie).
+All images provide an XFCE4 desktop accessible via TigerVNC and noVNC.
 
 * Table of Contents     :TOC:
 - [[#scope-of-this-repo][Scope of This Repo]]
 - [[#structure-of-this-repo][Structure of This Repo]]
-- [[#build-add-run-and-clean-process][Build, Add, Run and Clean Process]]
-- [[#bisos-platform-usage][BISOS Platform Usage]]
-- [[#standalone-preparations-and-usage][Standalone Preparations and Usage]]
-  - [[#install-packer-19-and-vagrant-23][Install Packer 1.9+ and Vagrant 2.3+]]
-  - [[#qemu-kvm-usage][QEMU-KVM usage]]
-- [[#debian-preseed][Debian Preseed]]
+- [[#images][Images]]
+- [[#building][Building]]
+- [[#running][Running]]
+- [[#connecting-to-a-container][Connecting to a Container]]
+- [[#installing-raw-bisos-inside-a-container][Installing Raw-BISOS Inside a Container]]
 - [[#related-resources][Related Resources]]
 
 * Scope of This Repo
 
-This scope of this repo is qemu as provider and debian as distro.
-Currenty we target
+Target Debian releases:
 
--  [[https://www.debian.org/releases/trixie][Debian 13 (Trixie)]]
--  [[https://www.debian.org/releases/bookworm/][Debian 12 (Bookworm)]]
+- [[https://www.debian.org/releases/bookworm/][Debian 12 (Bookworm)]]
+- [[https://www.debian.org/releases/trixie][Debian 13 (Trixie)]]
+
+All images provide:
+- XFCE4 desktop environment
+- TigerVNC server (port 5901 inside container)
+- noVNC web client (port 6901 inside container)
+- OpenSSH server (port 22 inside container)
+- Base applications: Firefox ESR, Emacs, git, gedit, meld, synaptic
+- Default user =bystar= / password =insecure= with passwordless sudo
 
 * Structure of This Repo
 
-For base box specifications, the structure of qemu in this repo is:\\
-<publisher>/<provider>/<distro>/<majorRelease>/<minorRelease>/<cpuArch>/<boxCapability>/<boxSelector>
-
-Here are some concrete mappings:
-
-| <publisher>     | bro_vagrantDebianBaseBoxes | bx  | vagrantBaseBoxes is aware of abbrevs     |
-| <provider>      | qemu                       |     | perhaps virtualbox later                 |
-| <distro>        | debian                     | deb | perhaps ubuntu later                     |
-| <majorRelease>  | 13                         |     | 13 and 12 currently                      |
-| <minorRelease>  | trixie                     |     | Prior to release we go by name           |
-| <cpuArch>       | amd64                      |     | For now just amd64                       |
-| <boxCapability> | netinst                    |     | Refers to boxes content and capabilities |
-| <boxSelector>   | us                         |     | Variations on capability, eg US keyboard |
-
-The above, describes the hierarchy of qemu in this repo which reflects the perspective of the user.
-
-The developer perspective is reflected in the poly hierarchy.
-The structure of poly in this repo is:\\
-<publisher>/poly/<distro>/<majorRelease>/<boxCapability>
-
-Here are some concrete mappings:
-
-| <publisher>     | bro_vagrantDebianBaseBoxes | vagrantBaseBoxes is aware of abbrevs     |
-| poly            | poly                       |                 |
-| <distro>        | debian                     | perhaps ubuntu later                     |
-| <majorRelease>  | 13                         | 13 and 12 currently                      |
-| <boxCapability> | netinst                    | Refers to boxes content and capabilities |
-
-The "<boxCapability>" (eg netinst) contains information for configuration of
-multiple environments.
-
-For the example of qemu+debian-13+netinst+us, consider the content of:\\
-https://github.com/bxObjects/bro_vagrantDebianBaseBoxes/tree/main/qemu/debian/13/trixie/amd64/netinst
-
-In that directory, the us.pkr.hcl file is a symlink to:\\
-../../../../../../poly/debian/13/netinst/13.trixie-netinst_us.pkr.hcl
-which points to the base for multi-configuration of this specific base box specification.
-
-The management of the relative symlinks and execution of the build process is wrapped in:\\
-https://github.com/bxObjects/bro_vagrantDebianBaseBoxes/blob/main/qemu/debian/13/trixie/amd64/netinst/vagBox.cs
-
-vagBox.cs is a planted CS (Command Service) whose seed is bisos.vagrantBaseBoxes's vagrantBoxProc.cs.
-
-
-* Build, Add, Run and Clean Process
-
-After having installed bisos.vagrantBaseBoxes python package, you can build, add, run and clean
-each of the boxes.
-
-* BISOS Platform Usage
-
-bro_vagrantDebianBaseBoxes are part of BISOS (ByStar Internet Services OS).
-A BISOS-Platform includes everything needed for processing the vagrant base box specifications.
-
-* Standalone Preparations and Usage
-
-When using /bisos.vagrantBaseBoxes/ and bro_vagrantDebianBaseBoxes outside of BISOS,
-you need to also install the following packages.
-
-** Install Packer 1.9+ and Vagrant 2.3+
-
-** QEMU-KVM usage
-
-Install qemu-kvm:
-
-#+BEGIN_SRC bash
-apt-get install -y qemu-kvm
-apt-get install -y sysfsutils
-systool -m kvm_intel -v
+#+BEGIN_SRC
+debian/
+  <majorRelease>/
+    confined/vnc/xfce/<imageName>/
+    privileged/vnc/xfce/<imageName>/
 #+END_SRC
 
-Type `make build-libvirt` and follow the instructions.
+| Path                                              | Base image                     | Init          |
+|---------------------------------------------------+--------------------------------+---------------|
+| =debian/12/confined/vnc/xfce/bisos_deb12-fresh/= | =debian:12.12=                 | =entrypoint.sh= |
+| =debian/12/privileged/vnc/xfce/bisos_deb12-sysd/= | =bisos/deb12-fresh-vnc-xfce=  | =systemd=     |
+| =debian/13/confined/vnc/xfce/bisos_deb13-fresh/= | =debian:13.1=                  | =entrypoint.sh= |
+| =debian/13/privileged/vnc/xfce/bisos_deb13-sysd/= | =bisos/deb13-fresh-vnc-xfce=  | =systemd=     |
 
-Try the example guest:
+The privileged images use the confined image as their =FROM= base, adding only
+the systemd layer on top. Build the confined image first.
+
+Each image directory contains:
+
+| File/Dir                        | Purpose                                                  |
+|---------------------------------+----------------------------------------------------------|
+| =Dockerfile=                    | Image definition                                         |
+| =docker-compose.yml=            | Convenience compose file for local use                   |
+| =build.bash=                    | Build and push multi-arch images to DockerHub            |
+| =dockerConf/entrypoint.sh=      | (confined only) Starts VNC, noVNC, sshd directly        |
+| =dockerConf/xstartup=           | (confined only) VNC xstartup launching XFCE4            |
+| =dockerConf/panel.sh=           | (confined only) XFCE4 panel launcher config (NOTYET)    |
+| =dockerConf/panel.desktop=      | (confined only) Autostart entry for panel.sh            |
+| =dockerConf/terminalrc=         | (confined only) XFCE4 terminal unicode settings         |
+| =dockerConf/vncserver.service=  | (privileged only) systemd unit for TigerVNC             |
+| =dockerConf/novnc.service=      | (privileged only) systemd unit for noVNC                |
+| =dockerConf/sshd-container.service= | (privileged only) systemd unit for sshd             |
+| =raw-bisos/=                    | (confined only) Scripts to install Raw-BISOS inside     |
+
+* Images
+
+** Confined
+
+No systemd. Services started by =entrypoint.sh=, container stays alive via
+=sleep infinity=. Can run on any Docker host without special privileges.
+
+| Image                          | Tag  | Debian | DockerHub name                    |
+|--------------------------------+------+--------+-----------------------------------|
+| =bisos/deb12-fresh-vnc-xfce=  | 1.21 | 12.12  | =bisos/deb12-fresh-vnc-xfce:1.21= |
+| =bisos/deb13-fresh-vnc-xfce=  | 4    | 13.1   | =bisos/deb13-fresh-vnc-xfce:4=    |
+
+** Privileged
+
+systemd as PID 1. Full socket activation, timers, journald, =systemctl= all
+work. Requires a Debian 12/13 host with cgroupv2 (=cgroup2fs=) and Docker
+Engine. Intended for trusted dev environments.
+
+The privileged images layer on top of the confined images — build confined first.
+
+| Image                         | Tag | Base image                     |
+|-------------------------------+-----+--------------------------------|
+| =bisos/deb12-sysd-vnc-xfce=  | 1   | =bisos/deb12-fresh-vnc-xfce:1.21= |
+| =bisos/deb13-sysd-vnc-xfce=  | 1   | =bisos/deb13-fresh-vnc-xfce:4=    |
+
+* Building
+
+** Confined (build first):
 
 #+BEGIN_SRC bash
-cd example
-apt-get install -y virt-manager libvirt-dev
-vagrant plugin install vagrant-libvirt # see https://github.com/vagrant-libvirt/vagrant-libvirt
-vagrant up --provider=libvirt --no-destroy-on-error
-vagrant ssh
-exit
-vagrant destroy -f
+cd debian/12/confined/vnc/xfce/bisos_deb12-fresh
+./build.bash -d          # local single-arch build
+./build.bash             # multi-arch build + push to DockerHub
 #+END_SRC
 
-
-* Debian Preseed
-
-The debian installation iso uses the [[https://wiki.debian.org/DebianInstaller][debian installer]] (aka d-i) to install
-debian. During the installation it will ask you some questions and it will also
-store your answers in the debconf database. After the installation is complete,
-you can see its contents with the following commands:
+** Privileged (requires confined image available locally or on DockerHub):
 
 #+BEGIN_SRC bash
-sudo su -l
-apt-get install debconf-utils
-debconf-get-selections --installer
-less /var/log/installer/syslog
-ls -la /var/log/installer/cdebconf
+cd debian/12/privileged/vnc/xfce/bisos_deb12-sysd
+./build.bash -d
 #+END_SRC
 
-In reality, before d-i asks a question, it will first look for the answer in its
-database, if its there, it will automatically continue the installation without
-asking the question at all.
+Same pattern for Debian 13 under =debian/13/=.
 
-To automate the installation, the database is populated from a preseed.txt text
-file. d-i will get its location from the kernel command line `url` argument.
-Which will be a http address served by packer during the machine provisioning.
+* Running
 
+#+BEGIN_SRC bash
+cd debian/12/confined/vnc/xfce/bisos_deb12-fresh
+docker compose up -d
+
+cd debian/12/privileged/vnc/xfce/bisos_deb12-sysd
+docker compose up -d
+#+END_SRC
+
+The current directory is mounted into the container at =/shuttle/this=.
+
+** Port assignments (host ports):
+
+| Container          | SSH  | VNC  | noVNC |
+|--------------------+------+------+-------|
+| deb12-confined     | 2222 | 5901 | 6901  |
+| deb12-privileged   | 2223 | 5902 | 6902  |
+| deb13-confined     | 2222 | 5901 | 6901  |
+| deb13-privileged   | 2224 | 5903 | 6903  |
+
+* Connecting to a Container
+
+** Via VNC client (recommended):
+
+Connect to =localhost:<vncPort>=. No password required.
+
+** Via browser (noVNC):
+
+Open =http://localhost:<novncPort>= in a browser.
+
+** Via SSH:
+
+#+BEGIN_SRC bash
+ssh -p <sshPort> bystar@localhost
+#+END_SRC
+
+** Credentials:
+
+- Username: =bystar=  Password: =insecure=
+- Passwordless sudo inside the container.
+
+* Installing Raw-BISOS Inside a Container
+
+The =raw-bisos/= subdirectory in each confined image provides scripts for
+bootstrapping a full Raw-BISOS installation inside the container. After
+=docker compose up -d=, exec into the container and run:
+
+#+BEGIN_SRC bash
+docker exec -it <containerName> bash
+cd ~/raw-bisos
+bash installRawBisos.sh
+#+END_SRC
+
+This downloads and runs the standard bxGenesis Raw-BISOS installer.
+See https://github.com/bxGenesis/start for details.
+
+After installation, run =postRawBisos.sh= to wire up =~/.bashrc= and set
+ownership of =/shuttle/this=.
 
 * Related Resources
 
-- Debian Bookworm [[https://www.debian.org/releases/bookworm/amd64/apb.en.html][Appendix B. Automating the installation using preseeding]]
-- Debian Bookworm [[https://www.debian.org/releases/bookworm/example-preseed.txt][example-preseed.txt]]
+- BISOS Bootstrap: https://github.com/bxGenesis/start
+- bisos.dockerProc package: =/bisos/git/auth/bxRepos/bisos-pip/dockerProc=
+- TigerVNC: https://tigervnc.org
+- noVNC: https://novnc.com

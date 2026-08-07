@@ -1,0 +1,160 @@
+#+title: Work Plan
+#+DATE: <2026-06-10 Wed 13:54>
+#+AUTHOR: Mohsen BANAN
+#+OPTIONS: toc:4
+#+TAGS: me ai aiAndMe
+
+# Provenance (installed once by aiActivity.cs --- not regenerated):
+#   Date:      2026-08-07T14:22:54-07:00
+#   User:      bystar
+#   Templates: /bisos/apps/defaults/ai-templates
+#   Command:   /bisos/pipx/bin/aiActivity.cs -i initiate --activity=custom --noLink=AI-Activity.org
+
+####+BEGIN: b:ai:file/particulars
+* AI Working Context
+  Working Directory: /bisos/git/auth/bxRepos/bxObjects/bro_dockerfiles
+  File: /bisos/git/auth/bxRepos/bxObjects/bro_dockerfiles/AI-WorkPlan.org
+  Companion Docs: AI-WORKFLOW.org, AI-Activity.org, AI-DevStatus.org, README.org
+###+END:
+
+This Work Plan file drives the AI collaborative development.
+Interactions are broken down into "Stages". Each Stage has a set
+of TODOs that I work with Claude to accomplish.
+
+Note to a fresh Claude: read this file together with AI-WORKFLOW.org,
+AI-Activity.org and AI-DevStatus.org to orient yourself. The =<<Context Confirmation>>=
+TODO below is the standard first step, or use =/bx-confirm0= as the automated equivalent.
+TODOs tagged =:ai:= are assigned to Claude. After completing a TODO, summarize results
+under =----- AI Results: ------= and mark it DONE.
+
+* Related AI-Activities
+
+@/bisos/git/bxRepos/bisos-pip/dockerProc//CLAUDE.md
+
+* Stage 0: Confirm AI's Understanding of This Repo's Context
+
+Goal: Confirm AI's understanding of the context and capture that in [[Context Confirmation]] TODO.
+
+
+* Stage 0 TODOs
+** +
+** DONE [#A] <<Context Confirmation>> for AI (typically triggered by /bx-confirm0) :aiAndMe:
+SCHEDULED: <2026-06-09 Tue>
+CLOSED: [2026-08-07 Thu]
+Must be repeated each time a new Claude instance is started here.
+Based on the series of files starting from CLAUDE.md in this repo,
+describe succinctly what you have understood.
+Enumerate explicitly which files you have imported and which you have considered.
+Prompt the user to confirm that the desired/appropriate model (/model) is being used for this project.
+----- AI Results: ------
+Imported and considered: CLAUDE.md → AI-WORKFLOW.org, AI-Activity.org (custom template),
+AI-DevStatus.org, AI-WorkPlan.org, and via cross-repo import:
+/bisos/git/bxRepos/bisos-pip/dockerProc/CLAUDE.md and its full chain including
+AI-Activity.org (bisos-pip conventions), plus reference panels (bisos.b, PyCsFwrk,
+bisos-pip, COMEEGA, poly-dblock, bxGenesis/start/README.org).
+Repo understood as: BxO Docker image specifications for BISOS containers.
+Model in use: claude-sonnet-4-6. User confirmed to proceed.
+** -
+
+* Stage 1: Rename desktop to vnc and cleanup
+
+Goal: Make sure that this having been copied from vagrant, is now clean and rename desktop to vnc
+
+
+* Stage 1 TODOs
+** +
+** DONE [#A] Identify all vagrant related relics. :aiAndMe:
+SCHEDULED: <2026-08-07 Fri 14:34>
+CLOSED: [2026-08-07 Thu]
+Delete or adapt them if applicable.
+----- AI Results: ------
+Identified and deleted the following vagrant relics:
+- =debian/12/desktop/vagBox.cs= — misplaced copy from bro_vagrantDebianBaseBoxes; used bisos.vagrantBaseBoxes and referenced Packer/Vagrantfile artifacts not present here. Deleted.
+- =debian/13/desktop/vagBox.cs= — same file, same issue. Deleted.
+- =debian/12/desktop/xfce/bisos-fresh/privileged/= and =standard/= stub dirs — placeholder directories with empty READMEs, no Docker relevance. Deleted.
+Also cleaned up the FD2PanelUpdate relic in dockerConf/panel.desktop (from the upstream FarmData2 project) in both deb12 and deb13 — renamed to BisosVncPanelUpdate with a proper comment.
+** DONE [#A] Rename ./debian/12/desktop to be ./debian/12/vnc :aiAndMe:
+SCHEDULED: <2026-08-07 Fri 14:34>
+CLOSED: [2026-08-07 Thu]
+- Same for debian 13
+- Replace any text that was refering to {12,13}/desktop
+----- AI Results: ------
+- Renamed =debian/12/desktop/= → =debian/12/vnc/= via =git mv= equivalent (filesystem rename).
+- Renamed =debian/13/desktop/= → =debian/13/vnc/= likewise.
+- Updated the docker-compose.yml service name from =desktop:= to =vnc:= in both deb12 and deb13 images.
+- Remaining occurrences of "desktop" in files are either: XFCE4 desktop environment terminology (correct), .desktop file extension (correct), docker-credential-desktop tool name (correct), or README files (rewritten in TODO 3). No path references to {12,13}/desktop remain.
+
+** DONE [#A] Update README.org to be for docker and not for vagrant :aiAndMe:
+SCHEDULED: <2026-08-07 Fri 14:34>
+CLOSED: [2026-08-07 Thu]
+Describe what this repo is all about.
+----- AI Results: ------
+Rewrote =README.org= from scratch. The old content described bro_vagrantDebianBaseBoxes with Packer/QEMU/Vagrant concepts (preseed, vagrantfiles, poly hierarchy). The new README describes:
+- Repo purpose: BISOS Docker image specs with XFCE4/VNC/noVNC/SSH
+- Directory structure under =debian/{12,13}/vnc/xfce/=
+- Both Debian 12 and 13 image variants and their differences
+- Build (local and multi-arch), run, and connect instructions
+- How to install Raw-BISOS inside a container via =raw-bisos/=
+- Related resources (bxGenesis/start, bisos.dockerProc, TigerVNC, noVNC)
+
+** -
+
+* Stage 2: Add confined/privileged hierarchy and privileged systemd containers
+
+Goal: Restructure the directory hierarchy to make privilege level explicit, and
+create privileged container variants with systemd as PID 1.
+
+
+* Stage 2 TODOs
+** +
+** DONE [#A] Restructure directory hierarchy to confined/privileged :aiAndMe:
+SCHEDULED: <2026-08-07 Thu>
+CLOSED: [2026-08-07 Thu]
+Rename debian/{12,13}/vnc to debian/{12,13}/confined/vnc.
+Create debian/{12,13}/privileged/vnc placeholders.
+----- AI Results: ------
+- Moved =debian/12/vnc/= → =debian/12/confined/vnc/=
+- Moved =debian/13/vnc/= → =debian/13/confined/vnc/=
+- Created =debian/12/privileged/vnc/= and =debian/13/privileged/vnc/=
+- Labels chosen: =confined= (unprivileged, seccomp constrained) and =privileged=
+  (full --privileged, systemd capable). Considered: safe, std, base, sandbox —
+  settled on confined/privileged as the most technically precise pair.
+
+** DONE [#A] Create privileged systemd container images for deb12 and deb13 :aiAndMe:
+SCHEDULED: <2026-08-07 Thu>
+CLOSED: [2026-08-07 Thu]
+Build on top of confined images. Full systemd as PID 1. VNC/noVNC/sshd as
+systemd units. Socket activation, timers, journald all functional.
+----- AI Results: ------
+Created =debian/12/privileged/vnc/xfce/bisos_deb12-sysd/= and
+=debian/13/privileged/vnc/xfce/bisos_deb13-sysd/= each containing:
+- =Dockerfile= — FROM confined base image; installs systemd+dbus; removes
+  container-incompatible units (udev, getty, plymouth, rescue); installs and
+  enables vncserver/novnc/sshd-container systemd units; ENTRYPOINT=/sbin/init
+- =docker-compose.yml= — privileged: true, cgroupns: host, /sys/fs/cgroup rw,
+  /sys/fs/fuse, tmpfs for /tmp /run /run/lock /var/log/journal,
+  stop_signal: SIGRTMIN+3
+- =dockerConf/vncserver.service= — TigerVNC as systemd forking service
+- =dockerConf/novnc.service= — websockify after vncserver.service
+- =dockerConf/sshd-container.service= — sshd as simple service
+- =build.bash= — same multi-arch pattern as confined
+Port assignments: deb12-privileged SSH=2223 VNC=5902 noVNC=6902;
+                  deb13-privileged SSH=2224 VNC=5903 noVNC=6903.
+Requires Debian 12/13 host with cgroupv2 (cgroup2fs).
+
+** DONE [#A] Update README.org for confined/privileged structure :aiAndMe:
+SCHEDULED: <2026-08-07 Thu>
+CLOSED: [2026-08-07 Thu]
+----- AI Results: ------
+Rewrote README.org to document the two-tier structure. Covers: confined vs
+privileged distinction, all four image paths with base image and init method,
+build order dependency (confined first), port assignment table for all four
+containers, connecting via VNC/noVNC/SSH, Raw-BISOS installation.
+
+** -
+
+
+# Local Variables:
+# eval: (setq-local toc-org-max-depth 4)
+# eval: (setq-local org-log-done 'time)
+# End:
