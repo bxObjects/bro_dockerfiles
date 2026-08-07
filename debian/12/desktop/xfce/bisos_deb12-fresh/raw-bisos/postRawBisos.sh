@@ -16,3 +16,7 @@ if [ -f "$HOME/_bashrc" ] ; then
     fi
 fi
 ls -l $HOME/.bashrc
+
+# sudo /de chmod 775 -- chown bisos:bisos
+
+sudo chown -R bystar:bystar /shuttle/this
