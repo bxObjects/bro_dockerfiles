@@ -22,9 +22,18 @@ All images provide an XFCE4 desktop accessible via TigerVNC and noVNC.
 - [[#scope-of-this-repo][Scope of This Repo]]
 - [[#structure-of-this-repo][Structure of This Repo]]
 - [[#images][Images]]
+  - [[#confined][Confined]]
+  - [[#privileged][Privileged]]
 - [[#building][Building]]
+  - [[#confined-build-first][Confined (build first):]]
+  - [[#privileged-requires-confined-image-available-locally-or-on-dockerhub][Privileged (requires confined image available locally or on DockerHub):]]
 - [[#running][Running]]
+  - [[#port-assignments-host-ports][Port assignments (host ports):]]
 - [[#connecting-to-a-container][Connecting to a Container]]
+  - [[#via-vnc-client-recommended][Via VNC client (recommended):]]
+  - [[#via-browser-novnc][Via browser (noVNC):]]
+  - [[#via-ssh][Via SSH:]]
+  - [[#credentials][Credentials:]]
 - [[#installing-raw-bisos-inside-a-container][Installing Raw-BISOS Inside a Container]]
 - [[#related-resources][Related Resources]]
 
@@ -52,32 +61,32 @@ debian/
     privileged/vnc/xfce/<imageName>/
 #+END_SRC
 
-| Path                                              | Base image                     | Init          |
-|---------------------------------------------------+--------------------------------+---------------|
-| =debian/12/confined/vnc/xfce/bisos_deb12-fresh/= | =debian:12.12=                 | =entrypoint.sh= |
-| =debian/12/privileged/vnc/xfce/bisos_deb12-sysd/= | =bisos/deb12-fresh-vnc-xfce=  | =systemd=     |
-| =debian/13/confined/vnc/xfce/bisos_deb13-fresh/= | =debian:13.1=                  | =entrypoint.sh= |
-| =debian/13/privileged/vnc/xfce/bisos_deb13-sysd/= | =bisos/deb13-fresh-vnc-xfce=  | =systemd=     |
+| Path                                            | Base image                 | Init          |
+|-------------------------------------------------+----------------------------+---------------|
+| =debian/12/confined/vnc/xfce/bisos_deb12-fresh/=  | =debian:12.12=               | =entrypoint.sh= |
+| =debian/12/privileged/vnc/xfce/bisos_deb12-sysd/= | =bisos/deb12-fresh-vnc-xfce= | =systemd=       |
+| =debian/13/confined/vnc/xfce/bisos_deb13-fresh/=  | =debian:13.1=                | =entrypoint.sh= |
+| =debian/13/privileged/vnc/xfce/bisos_deb13-sysd/= | =bisos/deb13-fresh-vnc-xfce= | =systemd=       |
 
 The privileged images use the confined image as their =FROM= base, adding only
 the systemd layer on top. Build the confined image first.
 
 Each image directory contains:
 
-| File/Dir                        | Purpose                                                  |
-|---------------------------------+----------------------------------------------------------|
-| =Dockerfile=                    | Image definition                                         |
-| =docker-compose.yml=            | Convenience compose file for local use                   |
-| =build.bash=                    | Build and push multi-arch images to DockerHub            |
-| =dockerConf/entrypoint.sh=      | (confined only) Starts VNC, noVNC, sshd directly        |
-| =dockerConf/xstartup=           | (confined only) VNC xstartup launching XFCE4            |
-| =dockerConf/panel.sh=           | (confined only) XFCE4 panel launcher config (NOTYET)    |
-| =dockerConf/panel.desktop=      | (confined only) Autostart entry for panel.sh            |
-| =dockerConf/terminalrc=         | (confined only) XFCE4 terminal unicode settings         |
-| =dockerConf/vncserver.service=  | (privileged only) systemd unit for TigerVNC             |
-| =dockerConf/novnc.service=      | (privileged only) systemd unit for noVNC                |
-| =dockerConf/sshd-container.service= | (privileged only) systemd unit for sshd             |
-| =raw-bisos/=                    | (confined only) Scripts to install Raw-BISOS inside     |
+| File/Dir                          | Purpose                                              |
+|-----------------------------------+------------------------------------------------------|
+| =Dockerfile=                        | Image definition                                     |
+| =docker-compose.yml=                | Convenience compose file for local use               |
+| =build.bash=                        | Build and push multi-arch images to DockerHub        |
+| =dockerConf/entrypoint.sh=          | (confined only) Starts VNC, noVNC, sshd directly     |
+| =dockerConf/xstartup=               | (confined only) VNC xstartup launching XFCE4         |
+| =dockerConf/panel.sh=               | (confined only) XFCE4 panel launcher config (NOTYET) |
+| =dockerConf/panel.desktop=          | (confined only) Autostart entry for panel.sh         |
+| =dockerConf/terminalrc=             | (confined only) XFCE4 terminal unicode settings      |
+| =dockerConf/vncserver.service=      | (privileged only) systemd unit for TigerVNC          |
+| =dockerConf/novnc.service=          | (privileged only) systemd unit for noVNC             |
+| =dockerConf/sshd-container.service= | (privileged only) systemd unit for sshd              |
+| =raw-bisos/=                        | (confined only) Scripts to install Raw-BISOS inside  |
 
 * Images
 
@@ -86,10 +95,10 @@ Each image directory contains:
 No systemd. Services started by =entrypoint.sh=, container stays alive via
 =sleep infinity=. Can run on any Docker host without special privileges.
 
-| Image                          | Tag  | Debian | DockerHub name                    |
-|--------------------------------+------+--------+-----------------------------------|
-| =bisos/deb12-fresh-vnc-xfce=  | 1.21 | 12.12  | =bisos/deb12-fresh-vnc-xfce:1.21= |
-| =bisos/deb13-fresh-vnc-xfce=  | 4    | 13.1   | =bisos/deb13-fresh-vnc-xfce:4=    |
+| Image                      |  Tag | Debian | DockerHub name                  |
+|----------------------------+------+--------+---------------------------------|
+| =bisos/deb12-fresh-vnc-xfce= | 1.21 |  12.12 | =bisos/deb12-fresh-vnc-xfce:1.21= |
+| =bisos/deb13-fresh-vnc-xfce= |    4 |   13.1 | =bisos/deb13-fresh-vnc-xfce:4=    |
 
 ** Privileged
 
@@ -99,10 +108,10 @@ Engine. Intended for trusted dev environments.
 
 The privileged images layer on top of the confined images — build confined first.
 
-| Image                         | Tag | Base image                     |
-|-------------------------------+-----+--------------------------------|
-| =bisos/deb12-sysd-vnc-xfce=  | 1   | =bisos/deb12-fresh-vnc-xfce:1.21= |
-| =bisos/deb13-sysd-vnc-xfce=  | 1   | =bisos/deb13-fresh-vnc-xfce:4=    |
+| Image                     | Tag | Base image                      |
+|---------------------------+-----+---------------------------------|
+| =bisos/deb12-sysd-vnc-xfce= |   1 | =bisos/deb12-fresh-vnc-xfce:1.21= |
+| =bisos/deb13-sysd-vnc-xfce= |   1 | =bisos/deb13-fresh-vnc-xfce:4=    |
 
 * Building
 
