@@ -1,5 +1,10 @@
 FROM bisos/deb13-fresh-vnc-xfce:4
 
+# The confined base image ends with USER bystar. systemd (PID 1) and all the
+# build-time apt/systemctl steps below require root, so switch to root and
+# stay there — a privileged systemd container runs /sbin/init as root.
+USER root
+
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install systemd and D-Bus.

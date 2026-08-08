@@ -9,7 +9,7 @@ services:
     container_name: mb-deb12-sysd-xfce-1
 
     privileged: true
-    cgroupns: host
+    cgroup: host
 
     volumes:
        - ./:/shuttle/this

@@ -29,7 +29,7 @@ under =----- AI Results: ------= and mark it DONE.
 
 * Related AI-Activities
 
-@/bisos/git/bxRepos/bisos-pip/dockerProc//CLAUDE.md
+@/bisos/git/bxRepos/bisos-pip/dockerProc/CLAUDE.md
 
 * Stage 0: Confirm AI's Understanding of This Repo's Context
 
@@ -47,13 +47,20 @@ describe succinctly what you have understood.
 Enumerate explicitly which files you have imported and which you have considered.
 Prompt the user to confirm that the desired/appropriate model (/model) is being used for this project.
 ----- AI Results: ------
-Imported and considered: CLAUDE.md → AI-WORKFLOW.org, AI-Activity.org (custom template),
-AI-DevStatus.org, AI-WorkPlan.org, and via cross-repo import:
-/bisos/git/bxRepos/bisos-pip/dockerProc/CLAUDE.md and its full chain including
-AI-Activity.org (bisos-pip conventions), plus reference panels (bisos.b, PyCsFwrk,
-bisos-pip, COMEEGA, poly-dblock, bxGenesis/start/README.org).
-Repo understood as: BxO Docker image specifications for BISOS containers.
-Model in use: claude-sonnet-4-6. User confirmed to proceed.
+Imported chain (in order): CLAUDE.md (regular file) → AI-WORKFLOW.org
+(symlink → /bisos/apps/defaults/ai-templates/mother/AI-WORKFLOW.org),
+AI-Activity.org (safe-copied =custom= template, placeholders still unfilled),
+AI-DevStatus.org, AI-WorkPlan.org.
+Considered but NOT resolvable: the cross-repo import in AI-WorkPlan.org,
+=@/bisos/git/bxRepos/bisos-pip/dockerProc/CLAUDE.md=, does not exist at that
+path — so the dockerProc reference panels were not actually imported this
+session (prior confirmation record notwithstanding).
+Repo understood as: BISOS Docker image specifications — XFCE4 desktops over
+VNC/noVNC/SSH on Debian 12 and 13, organized under
+=debian/{12,13}/{confined,privileged}/vnc/xfce/=. Confined = unprivileged
+(entrypoint.sh init); privileged = systemd PID 1 layered FROM confined.
+Stages 1 and 2 DONE; privileged images authored but not yet built/tested.
+Model: claude-opus-4-8 (1M context). User confirmed Opus is correct.
 ** -
 
 * Stage 1: Rename desktop to vnc and cleanup
