@@ -53,3 +53,13 @@ services:
       - "2224:22"      # SSH
       - "5903:5901"    # VNC
       - "6903:6901"    # NoVNC
+
+    networks:
+      - bisos_deb13_cgv1
+
+networks:
+  bisos_deb13_cgv1:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.201.0/24

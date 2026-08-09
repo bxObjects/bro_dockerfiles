@@ -27,7 +27,8 @@ Fill in the sections below when asked to update, following the structure provide
 * Current State
 
 As of 2026-08-09. Stages 1--4 authored; Stage 3 (rootless-sysd) and Stage 4
-(cgroup-v1 overlay) added, and the rootless-sysd bring-up completed.
+(cgroup-v1 overlay) added, and the rootless-sysd bring-up completed on a
+prior Debian cgroup-v2 host.
 
 The repo has a three-peer image hierarchy along an *init/isolation profile*
 axis: =confined= (docker, unprivileged, no systemd), =privileged= (docker,
@@ -36,47 +37,45 @@ PID 1). Six image specifications across two Debian releases and three profiles.
 README.org describes the current state including a host cgroup v1/v2
 compatibility matrix and a Debian-12-vs-13 host section.
 
-Verified: *deb13 privileged sysd* (docker, cgroup v2 host) and *deb13
-rootless-sysd* (Podman 4.3.1, cgroup v2 host) --- both boot systemd as PID 1,
-all three services active, reachable via SSH/VNC/noVNC, verify.sh all PASS.
-The rootless bring-up drove several fixes (auto-base build, =--isolation=chroot=
-for the buildah sd-bus bug, graphroot relocation off the full root fs,
-exec-free SSH-based verify.sh for old Podman, polkit masked) --- see Key
-Design Decisions and AI-WorkPlan Stages 3--4.
+Verified (prior session, Debian cgroup-v2 host): *deb13 privileged sysd* and
+*deb13 rootless-sysd* --- both boot systemd as PID 1, all three services
+active, reachable via SSH/VNC/noVNC, verify.sh all PASS.
 
-Still untested: deb12 privileged and deb12 rootless-sysd (same patterns, high
-confidence); the Quadlet per-engineer path under =systemctl --user=; the
-cgroup-v1 privileged overlay (no v1 host available yet).
+*Current host: RHEL 8.10 (cgroup v1, cannot reboot).* Context confirmed via
+=/bx-confirm0=. Host OS confirmed =Red Hat Enterprise Linux 8.10 (Ootpa)=.
+Next task: verify the cgroup-v1 privileged overlay (Stage 4 open TODO).
 
-* Continuation: Next on the RHEL 8.10 Host (different machine / fresh Claude)
+Still untested: deb12 variants (high confidence same patterns); Quadlet
+per-engineer path; cgroup-v1 privileged overlay (the immediate next task here).
 
-Work continues on a corporate RHEL 8.10 host on AWS with a fresh Claude (no
-memory of the prior session). Orientation:
+* Continuation: Current Session on RHEL 8.10
 
-1. Run =/bx-confirm0= and confirm the model.
-2. *Key constraint:* RHEL 8.10 defaults to *cgroup v1* and *cannot be rebooted*,
-   so it stays on v1. Therefore *rootless-sysd will NOT work there* (it needs
-   cgroup v2). Confirm with =stat -fc %T /sys/fs/cgroup= (expect =tmpfs= = v1;
-   =cgroup2fs= would be v2).
-3. *Primary task:* the runnable systemd variant on a v1 host is *privileged*
-   via the =docker-compose.cgv1.yml= overlay (see AI-WorkPlan Stage 4). Build,
-   run and verify it:
+Now running on the RHEL 8.10 host. Context confirmed. Key facts:
+
+1. *cgroup version:* RHEL 8.10 is on cgroup v1 (=stat -fc %T /sys/fs/cgroup=
+   will return =tmpfs=). Cannot reboot. Therefore *rootless-sysd is unavailable*.
+
+2. *Primary task:* verify the privileged cgroup-v1 overlay (Stage 4 open TODO).
+   - First confirm =--privileged= is permitted:
+     : docker run --rm --privileged busybox sh -c 'mount -t tmpfs none /mnt && echo PRIV_OK'
+     =PRIV_OK= = permitted. Also check for auth plugins and runtime-security
+     agents (falco/twistlock/prisma/aqua):
+     : docker info --format '{{.Plugins.Authorization}}'
+   - If permitted, build and run:
+     : cd debian/13/privileged/vnc/xfce/bisos_deb13-sysd
+     : ./build.bash -d
      : docker compose -f docker-compose.cgv1.yml up -d
      : ./verify.sh mb-deb13-sysd-xfce-cgv1 2224 5903 6903
-   The *privileged* verify.sh is the original =docker exec=-based one --- that
-   is fine here (the exec bug was rootless-Podman-4.3.1-specific; docker exec
-   works). Only the *rootless-sysd* verify.sh was rewritten to be exec-free.
-4. *First confirm =--privileged= is permitted* on that host (AI-WorkPlan Stage 4
-   has the procedure: authz-plugin check + empirical
-   =docker run --privileged ... mount= test + runtime-security/policy check).
-   "root can" != "security permits" on an audited corporate host.
-5. *Host packages are dnf, not apt* --- see =dnfPkgsList= in
-   =dockerProc/py3/bin/dockerProc-sbom.pcs= (bisos.sbom has no dnf helper yet;
-   install manually).
-6. If the host is ever moved to cgroup v2 (a fresh v2 instance --- RHEL 9 /
-   Amazon Linux 2023 --- or a reboot with
-   =systemd.unified_cgroup_hierarchy=1=), rootless-sysd becomes available; run
-   =dockerProc/py3/bin/hostPodmanVerify.sh= first.
+   - Note: =docker exec= works fine here (the exec-free workaround was
+     rootless-Podman-4.3.1-specific only).
+
+3. *Host packages:* =dnf=, not =apt=. Docker Engine should already be
+   installed; if not, use the RHEL Docker CE repo.
+
+4. *If =--privileged= is blocked:* only =confined= images are available on
+   this host until it is replaced with a cgroup-v2 instance (RHEL 9 /
+   Amazon Linux 2023) or rebooted with
+   =systemd.unified_cgroup_hierarchy=1= in the kernel args.
 
 * Architecture
 
