@@ -28,6 +28,10 @@ SSH_PORT=2226
 VNC_PORT=5905
 NOVNC_PORT=6905
 
+# raw-bisos (fresh-Debian -> Raw-BISOS) SHARED from the confined image (not
+# duplicated), resolved to an absolute path and mounted at ~/raw-bisos.
+RAWBISOS="$(cd "$(dirname "$0")/../../../../confined/vnc/xfce/bisos_deb13-fresh/raw-bisos" 2>/dev/null && pwd)"
+
 if [ "${1:-}" = "--rm" ]; then
   podman rm -f "$NAME"
   exit $?
@@ -41,6 +45,7 @@ podman run -d \
   -p "${VNC_PORT}:5901" \
   -p "${NOVNC_PORT}:6901" \
   -v "$(pwd):/shuttle/this" \
+  ${RAWBISOS:+-v "$RAWBISOS:/home/bystar/raw-bisos"} \
   "$IMAGE"
 
 echo

@@ -97,10 +97,10 @@ RUN echo 'root:password' | chpasswd
 USER $USERNAME
 WORKDIR /home/$USERNAME
 
-# Configure the VNC server so that it allows a connection without a login.
+# Prepare VNC dirs. No vncpasswd: the server runs with -SecurityTypes None
+# (see vncserver.service / entrypoint), so no password file is needed.
 RUN touch .Xauthority \
- && mkdir -p .config/tigervnc \
- && /bin/bash -c "echo -e '$PASSWD\n$PASSWD\nn' | vncpasswd; echo;"
+ && mkdir -p .config/tigervnc
 COPY --chown=$USERNAME:$USERNAME ./dockerConf/xstartup .config/tigervnc/xstartup
 USER root
 RUN echo ":1=$USERNAME" >> /etc/tigervnc/vncserver.users \

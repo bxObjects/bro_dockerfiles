@@ -26,6 +26,10 @@ PublishPort=2226:22
 PublishPort=5905:5901
 PublishPort=6905:6901
 Volume=%h/shuttle:/shuttle/this
+# raw-bisos (fresh-Debian -> Raw-BISOS) SHARED from the confined image, not
+# duplicated. Quadlet needs an ABSOLUTE host path (no repo-relative resolution);
+# point it at this host's confined raw-bisos dir, e.g.:
+# Volume=/bisos/git/auth/bxRepos/bxObjects/bro_dockerfiles/debian/13/confined/vnc/xfce/bisos_deb13-fresh/raw-bisos:/home/bystar/raw-bisos
 
 [Service]
 Restart=on-failure

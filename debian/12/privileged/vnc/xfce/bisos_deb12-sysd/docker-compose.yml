@@ -13,6 +13,9 @@ services:
 
     volumes:
        - ./:/shuttle/this
+       # raw-bisos (fresh-Debian -> Raw-BISOS) SHARED from the confined image,
+       # not duplicated. Mounted at the container's ~/raw-bisos.
+       - ../../../../confined/vnc/xfce/bisos_deb12-fresh/raw-bisos:/home/bystar/raw-bisos
        - /sys/fs/cgroup:/sys/fs/cgroup:rw
        - /sys/fs/fuse:/sys/fs/fuse
 
