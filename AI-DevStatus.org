@@ -26,14 +26,23 @@ Fill in the sections below when asked to update, following the structure provide
 
 * Current State
 
-As of 2026-08-07. All Stage 1 and Stage 2 TODOs completed in this session.
+As of 2026-08-08. Stages 1--4 authored; Stage 3 (rootless-sysd) and Stage 4
+(cgroup-v1 overlay) added this session.
 
-The repo is clean of vagrant relics and has a well-structured two-tier image
-hierarchy. Four image specifications exist across two Debian releases and two
-privilege levels. README.org accurately describes the current state.
+The repo has a three-peer image hierarchy along an *init/isolation profile*
+axis: =confined= (docker, unprivileged, no systemd), =privileged= (docker,
+=--privileged=, systemd PID 1), and =rootless-sysd= (podman, rootless, systemd
+PID 1). Six image specifications across two Debian releases and three profiles.
+README.org describes the current state including a host cgroup v1/v2
+compatibility matrix.
 
-The privileged images are authored but not yet built or tested — they await
-execution on a Debian 12/13 host with Docker Engine and cgroupv2.
+Tested this session: the *deb13 privileged sysd* image was built and run on a
+cgroup v2 Debian host and verified — systemd is PID 1, all three services
+active, reachable via SSH and VNC, =verify.sh= all green. Two build/run bugs
+were found and fixed in the process (see Key Design Decisions).
+
+Still untested: deb12 privileged; both rootless-sysd images (no Podman host
+available yet); the cgroup-v1 overlay (no v1 host available yet).
 
 * Architecture
 
@@ -41,11 +50,13 @@ execution on a Debian 12/13 host with Docker Engine and cgroupv2.
 
 #+BEGIN_SRC
 debian/
-  <majorRelease>/           12 or 13
-    confined/vnc/xfce/      unprivileged, entrypoint.sh init
-      bisos_deb12-fresh/    (or bisos_deb13-fresh/)
-    privileged/vnc/xfce/    --privileged, systemd PID 1
-      bisos_deb12-sysd/     (or bisos_deb13-sysd/)
+  <majorRelease>/              12 or 13
+    confined/vnc/xfce/         unprivileged, entrypoint.sh init
+      bisos_deb12-fresh/       (or bisos_deb13-fresh/)
+    privileged/vnc/xfce/       --privileged (docker), systemd PID 1
+      bisos_deb12-sysd/        (or bisos_deb13-sysd/)
+    rootless-sysd/vnc/xfce/    rootless podman, systemd PID 1 (cgroup v2)
+      bisos_deb12-rootless-sysd/ (or bisos_deb13-rootless-sysd/)
 #+END_SRC
 
 ** Confined images (=bisos_deb{12,13}-fresh=)
@@ -59,69 +70,130 @@ debian/
 ** Privileged images (=bisos_deb{12,13}-sysd=)
 
 - Base: =FROM bisos/deb12-fresh-vnc-xfce:1.21= (or deb13 equivalent) — layers on confined
+- =USER root= immediately after FROM (base ends as =USER bystar=; systemd + build steps need root)
 - Init: =/sbin/init= (systemd PID 1); =STOPSIGNAL SIGRTMIN+3=
 - Services: =vncserver.service=, =novnc.service=, =sshd-container.service= installed and enabled
 - Suppressed units: udev, getty, plymouth, rescue, initctl — these do not work in containers
-- docker-compose: =privileged: true=, =cgroupns: host=, =/sys/fs/cgroup= rw, =/sys/fs/fuse=,
+- docker-compose.yml (v2 host): =privileged: true=, =cgroup: host=, =/sys/fs/cgroup= rw, =/sys/fs/fuse=,
   tmpfs on =/tmp /run /run/lock /var/log/journal=
+- docker-compose.cgv1.yml (v1 host): =privileged: true=, NO =cgroup: host=,
+  =/sys/fs/cgroup:ro= + =/sys/fs/cgroup/systemd:rw=, container_name suffixed =-cgv1=
 - Ports (host): deb12 SSH=2223 VNC=5902 noVNC=6902; deb13 SSH=2224 VNC=5903 noVNC=6903
 - Requires: Debian 12/13 host, Docker Engine, cgroupv2 (=stat -fc %T /sys/fs/cgroup= → =cgroup2fs=)
+  for docker-compose.yml; use the cgv1 overlay on cgroup v1 hosts
+
+** Rootless-sysd images (=bisos_deb{12,13}-rootless-sysd=)
+
+- Build identical to privileged sysd (FROM confined + =USER root=, systemd, unit
+  suppression, enabled services, ENTRYPOINT =/sbin/init=). Difference is run-time only.
+- Run: =run.bash= → =podman run --systemd=always=, NO =--privileged=, NO
+  =/sys/fs/cgroup= mount, NO cgroupns. Podman does cgroup delegation + tmpfs itself.
+- Per-engineer multi-tenant form: Quadlet =*.container= unit (=systemctl --user=
+  + =loginctl enable-linger=).
+- Ports (host): deb12 SSH=2225 VNC=5904 noVNC=6904; deb13 SSH=2226 VNC=5905 noVNC=6905
+- Requires: rootless Podman + crun + cgroup v2 with controller delegation.
+  Does NOT work on cgroup v1 (no rootless delegation model).
+
+** Host cgroup v1/v2 compatibility
+
+| Profile         | cgroup v1 host                    | cgroup v2 host |
+|-----------------+-----------------------------------+----------------|
+| confined        | works                             | works          |
+| privileged sysd | works via docker-compose.cgv1.yml | works (.yml)   |
+| rootless-sysd   | does not work                     | works          |
+
+You cannot switch v1<->v2 at runtime (chosen at boot). RHEL 8 defaults to v1;
+flip via =grubby ... systemd.unified_cgroup_hierarchy=1= + reboot, or provision
+a fresh v2 instance. If a host cannot be rebooted and stays on v1, rootless-sysd
+is unavailable there; use the privileged v1 overlay (if =--privileged= permitted).
 
 ** Key files per image
 
 | File                            | Purpose                                      |
 |---------------------------------+----------------------------------------------|
 | =Dockerfile=                    | Image definition                             |
-| =docker-compose.yml=            | Local run configuration                      |
-| =build.bash=                    | Multi-arch build + DockerHub push            |
+| =docker-compose.yml=            | Local run config (docker; v2 host)           |
+| =docker-compose.cgv1.yml=       | (privileged) cgroup-v1 host overlay          |
+| =build.bash=                    | Multi-arch build + push (docker / podman)    |
+| =run.bash=                      | (rootless-sysd) podman run launcher          |
+| =*.container=                   | (rootless-sysd) Podman Quadlet unit          |
+| =verify.sh=                     | (sysd) host-side smoke test                  |
 | =dockerConf/entrypoint.sh=      | (confined) Manual service startup            |
 | =dockerConf/xstartup=           | (confined) VNC → XFCE4 startup              |
-| =dockerConf/vncserver.service=  | (privileged) systemd unit for TigerVNC       |
-| =dockerConf/novnc.service=      | (privileged) systemd unit for noVNC          |
-| =dockerConf/sshd-container.service= | (privileged) systemd unit for sshd       |
+| =dockerConf/vncserver.service=  | (sysd) systemd unit for TigerVNC             |
+| =dockerConf/novnc.service=      | (sysd) systemd unit for noVNC                |
+| =dockerConf/sshd-container.service= | (sysd) systemd unit for sshd             |
 | =raw-bisos/installRawBisos.sh=  | (confined) Bootstraps Raw-BISOS in container |
 
 * What Works
 
+- *deb13 privileged sysd: built, run and VERIFIED* on a cgroup v2 Debian host.
+  systemd is PID 1, all three services active, reachable via SSH and VNC,
+  =verify.sh= all green. This is the first end-to-end confirmation of the
+  systemd-in-container design.
 - Confined deb12 and deb13 images: Dockerfile, compose, build.bash, all
   dockerConf files are complete and consistent with the upstream working base.
-- Directory hierarchy: clean, no vagrant relics, all path references updated.
-- README.org: accurate and complete for the current structure.
-- Privileged image files: authored and structurally complete.
+- Directory hierarchy: three-peer profile axis, clean, all path references updated.
+- README.org and this file: updated for the three-peer model + cgroup matrix.
+- Privileged image files (both), rootless-sysd (both), cgroup-v1 overlay:
+  authored and structurally complete.
 
 * What Is Untested
 
-- Privileged images have not been built or run yet. The following need
-  verification on a Debian 12/13 host:
-  - =docker build= succeeds (=systemctl enable= at build time without running systemd)
-  - systemd boots cleanly inside the container (no hung units)
-  - =vncserver.service=, =novnc.service=, =sshd-container.service= start and stay up
-  - Socket activation works for user-added systemd units
-  - =journalctl= and =systemctl= behave as expected
+- deb12 privileged sysd: not built/run (deb13 verified; deb12 is the same
+  pattern, high confidence but unconfirmed).
+- rootless-sysd (deb12 and deb13): Podman is not installed on the current
+  host. Needs a rootless Podman + crun + cgroup v2 (with delegation) host to
+  verify build.bash, run.bash, verify.sh (incl. the rootless assertion), and
+  the Quadlet unit under =systemctl --user=.
+- cgroup-v1 privileged overlay (=docker-compose.cgv1.yml=): no cgroup v1 host
+  available. Needs verification on a v1 host (e.g. RHEL 8.10) that systemd
+  boots and services come up, once =--privileged= is confirmed permitted.
 - Confined images: not re-tested after the =desktop= → =confined/vnc= rename,
   though the Dockerfile and scripts are unchanged.
 
 * Key Design Decisions
 
-- *confined/privileged as hierarchy dimension* — privilege level is a first-class
-  concern that affects init, cgroup config, and security posture. Making it an
-  explicit directory level (rather than a name suffix) keeps future variants clean.
+- *init/isolation profile as the hierarchy dimension* — originally framed as
+  "confined/privileged (privilege level)"; broadened to an init/isolation
+  profile axis when =rootless-sysd= was added as a third peer. The peers are
+  named by property, not by tool (=confined=, =privileged=, =rootless-sysd= —
+  not "docker"/"podman"), so a future reader isn't misled. Explicit directory
+  level (not a name suffix) keeps variants clean.
 
-- *Privileged images layer on confined* — =FROM bisos/deb12-fresh-vnc-xfce= means
-  package updates to the confined image flow through to privileged automatically
-  on rebuild. No duplication of the full apt-get install list.
+- *rootless-sysd collapses the confined/privileged tradeoff* — it delivers the
+  =privileged= payoff (systemd PID 1) with the =confined= security posture
+  (unprivileged, userspace) by running under rootless Podman. Motivated by the
+  multi-tenant "N engineers on one shared VM" case where Docker =--privileged=
+  fails a security review. Cost: requires cgroup v2.
 
-- *VNC/noVNC/sshd as systemd units in privileged* — replaces the manual
+- *Privileged/rootless images layer on confined* — =FROM bisos/deb{12,13}-fresh-vnc-xfce=
+  means package updates to the confined image flow through automatically on
+  rebuild. No duplication of the apt-get install list.
+
+- *VNC/noVNC/sshd as systemd units in sysd images* — replaces the manual
   =entrypoint.sh= approach. Gives restart-on-failure, proper dependency ordering
   (noVNC after VNC), and =systemctl status= visibility.
 
-- *udev suppressed* — =systemd-udevd= is removed from the privileged image because
+- *udev suppressed* — =systemd-udevd= is removed from the sysd images because
   there is no real hardware to manage inside a container. All other systemd
   functionality is preserved.
 
-- *cgroupns: host* — required for systemd to correctly manage service scopes.
-  Without it, systemd sees a private cgroup namespace and some socket/scope
-  operations fail.
+- *cgroup: host (v2)* — the compose key is =cgroup: host= (maps to
+  =--cgroupns=host=), NOT =cgroupns: host= (which the Compose schema rejects).
+  Needed on v2 so systemd manages service scopes in the host cgroup namespace.
+  Fixed this session — the original files used the invalid =cgroupns= key.
+
+- *cgroup-v1 overlay for old hosts* — =docker-compose.cgv1.yml= supports hosts
+  still on cgroup v1 (e.g. RHEL 8 default, unrebootable): drops =cgroup: host=
+  (cgroup namespaces are a newer-kernel feature) and uses the classic v1 mount
+  (=/sys/fs/cgroup:ro= + =/sys/fs/cgroup/systemd:rw=).
+
+- *USER root in sysd Dockerfiles* — the confined base ends as =USER bystar=,
+  so the privileged/rootless Dockerfiles switch to =USER root= right after
+  =FROM= or the build-time apt/systemctl steps fail with permission-denied, and
+  =/sbin/init= needs root (namespaced root under rootless Podman). Fixed this
+  session — builds failed until this was added.
 
 # Local Variables:
 # eval: (setq-local toc-org-max-depth 4)

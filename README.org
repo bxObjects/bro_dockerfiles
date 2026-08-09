@@ -6,14 +6,24 @@
 As a BRO (BISOS Repo Object), this repo contains Dockerfile specifications
 for building BISOS Docker container images.
 
-Images are organized along two privilege dimensions:
+Images are organized along an *init/isolation profile* dimension --- three
+peers describing how the container is initialized and how much privilege it
+holds:
 
 - *confined* :: Unprivileged containers. No systemd. VNC/noVNC/sshd started
-  directly via =entrypoint.sh=. Safe to run anywhere.
+  directly via =entrypoint.sh=. Safe to run anywhere; cgroup-version-agnostic.
 
-- *privileged* :: Full =--privileged= containers with systemd as PID 1.
-  VNC/noVNC/sshd managed as systemd units. Socket activation works.
+- *privileged* :: Full =--privileged= containers (Docker) with systemd as
+  PID 1. VNC/noVNC/sshd managed as systemd units. Socket activation works.
   Behaves as close to a VM as possible. Intended for trusted dev environments.
+
+- *rootless-sysd* :: Same systemd-as-PID-1 image, but run under *rootless
+  Podman* --- systemd fidelity *with* the unprivileged/userspace security
+  posture (no =--privileged=). Requires a *cgroup v2* host. Intended for
+  multi-tenant use (N engineers on one shared host).
+
+The three peers are named by property, not by tool. See
+[[#host-compatibility-cgroup-v1-vs-v2][Host Compatibility]] for which profile works on which host.
 
 Each variant targets Debian 12 (Bookworm) and Debian 13 (Trixie).
 All images provide an XFCE4 desktop accessible via TigerVNC and noVNC.
@@ -24,9 +34,12 @@ All images provide an XFCE4 desktop accessible via TigerVNC and noVNC.
 - [[#images][Images]]
   - [[#confined][Confined]]
   - [[#privileged][Privileged]]
+  - [[#rootless-sysd][Rootless-sysd]]
+- [[#host-compatibility-cgroup-v1-vs-v2][Host Compatibility (cgroup v1 vs v2)]]
 - [[#building][Building]]
   - [[#confined-build-first][Confined (build first):]]
   - [[#privileged-requires-confined-image-available-locally-or-on-dockerhub][Privileged (requires confined image available locally or on DockerHub):]]
+  - [[#rootless-sysd-podman-requires-confined-image-available][Rootless-sysd (Podman; requires confined image available):]]
 - [[#running][Running]]
   - [[#port-assignments-host-ports][Port assignments (host ports):]]
 - [[#connecting-to-a-container][Connecting to a Container]]
@@ -59,17 +72,23 @@ debian/
   <majorRelease>/
     confined/vnc/xfce/<imageName>/
     privileged/vnc/xfce/<imageName>/
+    rootless-sysd/vnc/xfce/<imageName>/
 #+END_SRC
 
-| Path                                            | Base image                 | Init          |
-|-------------------------------------------------+----------------------------+---------------|
-| =debian/12/confined/vnc/xfce/bisos_deb12-fresh/=  | =debian:12.12=               | =entrypoint.sh= |
-| =debian/12/privileged/vnc/xfce/bisos_deb12-sysd/= | =bisos/deb12-fresh-vnc-xfce= | =systemd=       |
-| =debian/13/confined/vnc/xfce/bisos_deb13-fresh/=  | =debian:13.1=                | =entrypoint.sh= |
-| =debian/13/privileged/vnc/xfce/bisos_deb13-sysd/= | =bisos/deb13-fresh-vnc-xfce= | =systemd=       |
+| Path                                                | Base image                 | Init          | Engine / posture          |
+|-----------------------------------------------------+----------------------------+---------------+---------------------------|
+| =debian/12/confined/vnc/xfce/bisos_deb12-fresh/=      | =debian:12.12=               | =entrypoint.sh= | docker, unprivileged      |
+| =debian/12/privileged/vnc/xfce/bisos_deb12-sysd/=     | =bisos/deb12-fresh-vnc-xfce= | =systemd=       | docker, =--privileged=      |
+| =debian/12/rootless-sysd/vnc/xfce/bisos_deb12-rootless-sysd/= | =bisos/deb12-fresh-vnc-xfce= | =systemd= | podman, rootless        |
+| =debian/13/confined/vnc/xfce/bisos_deb13-fresh/=      | =debian:13.1=                | =entrypoint.sh= | docker, unprivileged      |
+| =debian/13/privileged/vnc/xfce/bisos_deb13-sysd/=     | =bisos/deb13-fresh-vnc-xfce= | =systemd=       | docker, =--privileged=      |
+| =debian/13/rootless-sysd/vnc/xfce/bisos_deb13-rootless-sysd/= | =bisos/deb13-fresh-vnc-xfce= | =systemd= | podman, rootless        |
 
-The privileged images use the confined image as their =FROM= base, adding only
-the systemd layer on top. Build the confined image first.
+Both the privileged and rootless-sysd images use the confined image as their
+=FROM= base, adding only the systemd layer on top. Build the confined image
+first. The privileged and rootless-sysd images share an identical build; they
+differ only at run time (=--privileged= + cgroup mounts vs. rootless Podman's
+native systemd integration).
 
 Each image directory contains:
 
@@ -83,9 +102,13 @@ Each image directory contains:
 | =dockerConf/panel.sh=               | (confined only) XFCE4 panel launcher config (NOTYET) |
 | =dockerConf/panel.desktop=          | (confined only) Autostart entry for panel.sh         |
 | =dockerConf/terminalrc=             | (confined only) XFCE4 terminal unicode settings      |
-| =dockerConf/vncserver.service=      | (privileged only) systemd unit for TigerVNC          |
-| =dockerConf/novnc.service=          | (privileged only) systemd unit for noVNC             |
-| =dockerConf/sshd-container.service= | (privileged only) systemd unit for sshd              |
+| =dockerConf/vncserver.service=      | (sysd) systemd unit for TigerVNC                     |
+| =dockerConf/novnc.service=          | (sysd) systemd unit for noVNC                        |
+| =dockerConf/sshd-container.service= | (sysd) systemd unit for sshd                         |
+| =docker-compose.cgv1.yml=           | (privileged only) cgroup-v1 host overlay             |
+| =run.bash=                          | (rootless-sysd) =podman run= launcher                  |
+| =*.container=                       | (rootless-sysd) Podman Quadlet unit (per-engineer)   |
+| =verify.sh=                         | (sysd) host-side smoke test of a running container   |
 | =raw-bisos/=                        | (confined only) Scripts to install Raw-BISOS inside  |
 
 * Images
@@ -113,6 +136,54 @@ The privileged images layer on top of the confined images — build confined fir
 | =bisos/deb12-sysd-vnc-xfce= |   1 | =bisos/deb12-fresh-vnc-xfce:1.21= |
 | =bisos/deb13-sysd-vnc-xfce= |   1 | =bisos/deb13-fresh-vnc-xfce:4=    |
 
+On a cgroup-v1 host that cannot be moved to v2, use the =docker-compose.cgv1.yml=
+overlay instead of =docker-compose.yml= (see [[#host-compatibility-cgroup-v1-vs-v2][Host Compatibility]]).
+
+** Rootless-sysd
+
+The same systemd image as privileged, but run under *rootless Podman* --- no
+=--privileged=, no host =/sys/fs/cgroup= bind mount. Podman's native systemd
+integration (=--systemd=always=) does the cgroup subtree delegation and tmpfs
+plumbing inside the launching user's namespace. Container root maps to the
+engineer's unprivileged host UID. *Requires a cgroup v2 host with delegation.*
+
+| Image                              | Tag | Base image                      |
+|------------------------------------+-----+---------------------------------|
+| =bisos/deb12-rootless-sysd-vnc-xfce= |   1 | =bisos/deb12-fresh-vnc-xfce:1.21= |
+| =bisos/deb13-rootless-sysd-vnc-xfce= |   1 | =bisos/deb13-fresh-vnc-xfce:4=    |
+
+Host prerequisites (Debian): =podman crun uidmap fuse-overlayfs
+dbus-user-session slirp4netns passt=. Enable cgroup v2 controller delegation
+for the user session (=Delegate=cpu io memory pids= drop-in on
+=user@.service=). The Quadlet =*.container= unit is the per-engineer form
+(=systemctl --user= + =loginctl enable-linger=) for multi-tenant hosts.
+
+* Host Compatibility (cgroup v1 vs v2)
+
+Which profile works depends on the *host* cgroup version. You cannot switch
+v1 <-> v2 at runtime (it is chosen at boot). Check with:
+
+#+BEGIN_SRC bash
+stat -fc %T /sys/fs/cgroup      # cgroup2fs = v2 ; tmpfs = v1/hybrid
+#+END_SRC
+
+| Profile         | cgroup v1 host                          | cgroup v2 host |
+|-----------------+-----------------------------------------+----------------|
+| confined        | works                                   | works          |
+| privileged sysd | works via =docker-compose.cgv1.yml= overlay | works (=.yml=)   |
+| rootless-sysd   | *does not work* (no v1 rootless deleg.)   | works          |
+
+Notes:
+- *rootless-sysd requires cgroup v2.* cgroup v1 has no safe delegation model,
+  so rootless systemd-as-PID-1 and rootless resource limits do not work.
+- *privileged sysd works on v1* with the =docker-compose.cgv1.yml= overlay:
+  mounts =/sys/fs/cgroup:ro= + =/sys/fs/cgroup/systemd:rw= and omits
+  =cgroup: host=. Still needs =--privileged=.
+- *RHEL 8* defaults to v1/hybrid; flip with
+  =grubby --update-kernel=ALL --args="systemd.unified_cgroup_hierarchy=1"= +
+  reboot. If the host cannot be rebooted, use the v1 overlay (privileged) or
+  provision a fresh v2 instance (RHEL 9 / Amazon Linux 2023 default to v2).
+
 * Building
 
 ** Confined (build first):
@@ -130,28 +201,45 @@ cd debian/12/privileged/vnc/xfce/bisos_deb12-sysd
 ./build.bash -d
 #+END_SRC
 
+** Rootless-sysd (Podman; requires confined image available):
+
+#+BEGIN_SRC bash
+cd debian/12/rootless-sysd/vnc/xfce/bisos_deb12-rootless-sysd
+./build.bash -d          # podman build (local)
+#+END_SRC
+
 Same pattern for Debian 13 under =debian/13/=.
 
 * Running
 
 #+BEGIN_SRC bash
+# confined / privileged (Docker)
 cd debian/12/confined/vnc/xfce/bisos_deb12-fresh
 docker compose up -d
 
 cd debian/12/privileged/vnc/xfce/bisos_deb12-sysd
-docker compose up -d
+docker compose up -d                              # cgroup v2 host
+docker compose -f docker-compose.cgv1.yml up -d   # cgroup v1 host
+
+# rootless-sysd (Podman, cgroup v2 host)
+cd debian/12/rootless-sysd/vnc/xfce/bisos_deb12-rootless-sysd
+./run.bash
 #+END_SRC
 
-The current directory is mounted into the container at =/shuttle/this=.
+The current directory is mounted into the container at =/shuttle/this=. After a
+container is up, =./verify.sh= (in each sysd image dir) smoke-tests it from the
+host --- systemd is PID 1, services active, journald live, ports listening.
 
 ** Port assignments (host ports):
 
-| Container          | SSH  | VNC  | noVNC |
-|--------------------+------+------+-------|
-| deb12-confined     | 2222 | 5901 | 6901  |
-| deb12-privileged   | 2223 | 5902 | 6902  |
-| deb13-confined     | 2222 | 5901 | 6901  |
-| deb13-privileged   | 2224 | 5903 | 6903  |
+| Container            | SSH  | VNC  | noVNC |
+|----------------------+------+------+-------|
+| deb12-confined       | 2222 | 5901 | 6901  |
+| deb12-privileged     | 2223 | 5902 | 6902  |
+| deb12-rootless-sysd  | 2225 | 5904 | 6904  |
+| deb13-confined       | 2222 | 5901 | 6901  |
+| deb13-privileged     | 2224 | 5903 | 6903  |
+| deb13-rootless-sysd  | 2226 | 5905 | 6905  |
 
 * Connecting to a Container
 

@@ -1,0 +1,52 @@
+# docker-compose.cgv1.yml --- cgroup v1 overlay for the privileged sysd image.
+#
+# Use this INSTEAD of docker-compose.yml on a host that is still on cgroup v1
+# (e.g. RHEL/CentOS 7, or RHEL 8 in its default v1/hybrid mode that cannot be
+# rebooted onto the unified v2 hierarchy). Check the host first:
+#
+#     stat -fc %T /sys/fs/cgroup
+#         cgroup2fs -> v2, use docker-compose.yml
+#         tmpfs     -> v1/hybrid, use THIS file
+#
+# Differences from the v2 docker-compose.yml:
+#   - NO `cgroup: host` (--cgroupns=host): cgroup namespaces are a newer-kernel
+#     feature; on v1 hosts the default (host) namespace is used implicitly.
+#   - The cgroup hierarchy is mounted read-only, with only the `systemd`
+#     subsystem read-write --- the classic v1 systemd-in-container recipe ---
+#     instead of the v2 `/sys/fs/cgroup:rw` single mount.
+#
+# Still requires `--privileged`. This does NOT give the rootless posture;
+# rootless systemd needs cgroup v2 (see rootless-sysd variant). Run with:
+#
+#     docker compose -f docker-compose.cgv1.yml up -d
+#     ./verify.sh mb-deb13-sysd-xfce-cgv1 2224 5903 6903
+
+services:
+
+  vnc:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+
+    image: bisos/deb13-sysd-vnc-xfce:1
+    container_name: mb-deb13-sysd-xfce-cgv1
+
+    privileged: true
+    # NOTE: no `cgroup: host` here --- unsupported/meaningless on cgroup v1.
+
+    volumes:
+       - ./:/shuttle/this
+       - /sys/fs/cgroup:/sys/fs/cgroup:ro
+       - /sys/fs/cgroup/systemd:/sys/fs/cgroup/systemd:rw
+
+    tmpfs:
+      - /tmp
+      - /run
+      - /run/lock
+
+    stop_signal: SIGRTMIN+3
+
+    ports:
+      - "2224:22"      # SSH
+      - "5903:5901"    # VNC
+      - "6903:6901"    # NoVNC

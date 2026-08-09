@@ -160,6 +160,179 @@ containers, connecting via VNC/noVNC/SSH, Raw-BISOS installation.
 
 ** -
 
+* Stage 3: Add rootless-sysd (Podman) variant
+
+Goal: Add a third peer to the confined/privileged init-profile axis: a
+rootless Podman systemd container that delivers the =privileged= payoff
+(systemd as PID 1) with the =confined= security posture (unprivileged,
+userspace). Motivated by the multi-tenant "N engineers on one shared VM"
+use case, where Docker =--privileged= is a security dealbreaker but engineers
+still need systemd fidelity inside their dev box.
+
+Note on the model: the directory level formerly read as "privilege level"
+(confined vs privileged) is now better understood as an "init/isolation
+profile" axis. The three peers are named by property, not by tool:
+=confined= (docker, unprivileged, no systemd), =privileged= (docker,
+--privileged, systemd), =rootless-sysd= (podman, unprivileged, systemd).
+
+
+* Stage 3 TODOs
+** +
+** DONE [#A] Scaffold rootless-sysd variant for deb12 and deb13 :aiAndMe:
+SCHEDULED: <2026-08-08 Sat>
+CLOSED: [2026-08-08 Sat]
+Add debian/{12,13}/rootless-sysd/vnc/xfce/bisos_deb{12,13}-rootless-sysd/.
+Adapt the sysd image to run under rootless Podman (drop --privileged and
+cgroup mounts; rely on Podman's native systemd integration).
+----- AI Results: ------
+Created =debian/12/rootless-sysd/vnc/xfce/bisos_deb12-rootless-sysd/= and
+=debian/13/rootless-sysd/vnc/xfce/bisos_deb13-rootless-sysd/=, each containing:
+- =Dockerfile= — FROM confined base + USER root; build is identical to the
+  privileged sysd image (systemd/dbus install, unit suppression, enable
+  vncserver/novnc/sshd-container, ENTRYPOINT=/sbin/init). Difference is
+  runtime-only.
+- =run.bash= — =podman run --systemd=always= with NO --privileged, NO
+  /sys/fs/cgroup mount, NO cgroupns=host. Podman does cgroup delegation +
+  tmpfs plumbing itself, inside the user namespace.
+- =<name>.container= — Podman Quadlet unit for the per-engineer multi-tenant
+  model (systemctl --user manage + loginctl enable-linger).
+- =build.bash= — podman build (=-d= local) / podman manifest push (multi-arch).
+- =verify.sh= — same checks as the privileged verify.sh via =podman exec=,
+  plus an assertion that the container is genuinely rootless (not privileged,
+  launched by a non-root host UID).
+- =dockerConf/{vncserver,novnc,sshd-container}.service= — copied verbatim from
+  the privileged variant (engine-agnostic).
+Port assignments: deb12-rootless SSH=2225 VNC=5904 noVNC=6904;
+                  deb13-rootless SSH=2226 VNC=5905 noVNC=6905.
+
+** TODO [#A] Build, run and verify rootless-sysd on a Podman host :aiAndMe:
+SCHEDULED: <2026-08-08 Sat>
+Untested — Podman is not installed on the current host. On a host with
+rootless Podman + cgroups v2 delegation + crun, verify:
+- =./build.bash -d= builds each image from its confined base.
+- =./run.bash= starts the container rootless (no --privileged).
+- =./verify.sh= passes all checks (incl. the rootless assertion).
+- The Quadlet unit starts via =systemctl --user= and survives with
+  =loginctl enable-linger=.
+----- AI Results: ------
+
+** DONE [#B] Update README.org and AI-DevStatus.org for the three-peer model :ai:
+SCHEDULED: <2026-08-08 Sat>
+CLOSED: [2026-08-08 Sat]
+Document rootless-sysd as the third init/isolation profile alongside
+confined and privileged. Update the port table (add 2225/5904/6904 and
+2226/5905/6905) and the architecture section.
+----- AI Results: ------
+README.org: reframed the intro to the three-peer init/isolation profile axis;
+added a Rootless-sysd images subsection, a "Host Compatibility (cgroup v1 vs
+v2)" section with the decision matrix, the =docker-compose.cgv1.yml= overlay,
+rootless build/run examples, the six-row port table (added rootless
+2225/5904/6904 and 2226/5905/6905), updated the structure table (engine/posture
+column) and key-files table (run.bash, *.container, verify.sh, cgv1 overlay),
+and refreshed the TOC.
+AI-DevStatus.org: rewrote Current State (deb13 privileged verified this
+session; rootless/cgv1 untested), added rootless-sysd + cgroup v1/v2 sections
+to Architecture, updated the key-files table, What Works / What Is Untested,
+and Key Design Decisions (recorded the two build fixes: =USER root= and the
+=cgroupns: host= → =cgroup: host= correction, plus the rootless-sysd rationale
+and the v1 overlay).
+
+** -
+
+* Stage 4: Host cgroup constraints and the cgroup-v1 privileged overlay
+
+Goal: Capture which of the four models actually work on a given host as a
+function of its cgroup version and privilege policy, and provide a working
+systemd option for old (cgroup v1) hosts that cannot be rebooted. Driven by a
+concrete situation: a corporate AWS *RHEL 8.10* host, still on cgroup v1, that
+cannot be rebooted.
+
+** Background: cgroup v1 vs v2 decision matrix
+
+The init/isolation profiles depend on the HOST cgroup version. You cannot
+switch v1 <-> v2 at runtime --- the unified hierarchy is chosen at boot.
+Check with: =stat -fc %T /sys/fs/cgroup= (=cgroup2fs= = v2; =tmpfs= = v1/hybrid).
+
+| Model                     | cgroup v1 host                         | cgroup v2 host |
+|---------------------------+----------------------------------------+----------------|
+| confined (docker/podman)  | works (cgroup-agnostic)                | works          |
+| privileged sysd (docker)  | works, but needs the v1 compose overlay| works (v2 yml) |
+| rootless-sysd (podman)    | DOES NOT WORK (no v1 rootless deleg.)  | works          |
+| Vagrant VM                | works IF /dev/kvm present              | same           |
+
+Key facts established:
+- *rootless-sysd requires cgroup v2.* cgroup v1 has no safe delegation model,
+  so an unprivileged user cannot get a writable cgroup subtree; rootless
+  systemd-as-PID-1 and rootless cpu/mem limits simply do not work on v1.
+  RHEL 8 hybrid mounts a v2 node at =/sys/fs/cgroup/unified= but it carries no
+  controllers, so this does not rescue rootless delegation.
+- *privileged sysd works on v1* via the classic recipe: =--privileged=, mount
+  =/sys/fs/cgroup:ro= + =/sys/fs/cgroup/systemd:rw=, tmpfs on =/run /run/lock=,
+  and NO =cgroup: host= (cgroup namespaces are a newer-kernel feature).
+- *Vagrant on AWS* needs nested virtualization (=/dev/kvm=), available only on
+  =.metal= instance types --- orthogonal to the cgroup question.
+
+** RHEL 8.10 specifics (the work host)
+
+- RHEL 8 (kernel 4.18) *supports* cgroup v2 but *defaults to v1/hybrid*.
+- The supported flip is a boot-time kernel arg + reboot:
+  =sudo grubby --update-kernel=ALL --args="systemd.unified_cgroup_hierarchy=1"=
+  then reboot; then add a user delegation drop-in
+  (=/etc/systemd/system/user@.service.d/delegate.conf= with
+  =Delegate=cpu cpuset io memory pids=).
+- *Constraint: the host cannot be rebooted.* Therefore it stays on cgroup v1
+  and *rootless-sysd is unavailable there*. No runtime/userspace workaround
+  exists.
+- No-reboot options on that host: =confined= always; =privileged= sysd via the
+  v1 overlay *iff* =--privileged= is permitted.
+- AWS-native escape hatch that avoids rebooting the pet: stand up a *new*
+  instance already on cgroup v2 (RHEL 9 / Amazon Linux 2023 default to v2, or a
+  RHEL 8 launch template with the kernel arg baked into user-data), and a
+  =.metal= type if the Vagrant/true-VM path is also wanted.
+
+** Determining whether =--privileged= is allowed
+
+"I have root" answers a different question than "am I authorized." Two levels:
+- *Technical (can the daemon do it):* check for an authorization plugin
+  (=docker info --format '{{.Plugins.Authorization}}'=), userns-remap/rootless
+  mode (=docker info | grep -iE 'userns|rootless'=), then empirically test ---
+  =docker run --rm --privileged busybox sh -c 'mount -t tmpfs none /mnt && echo PRIV_OK'=.
+  =PRIV_OK= = permitted; "authorization denied by plugin" = forbidden.
+- *Policy (are you sanctioned):* look for a runtime-security agent
+  (falco/twistlock/prisma/aqua/sysdig/crowdstrike) that may allow-but-flag
+  privileged containers, and confirm with the security/platform team. On an
+  audited corporate host, "root can" != "security permits".
+
+
+* Stage 4 TODOs
+** +
+** DONE [#A] Scaffold the cgroup-v1 privileged compose overlay :aiAndMe:
+SCHEDULED: <2026-08-08 Sat>
+CLOSED: [2026-08-08 Sat]
+Provide a working systemd option for cgroup-v1 hosts (no reboot needed),
+alongside the existing v2 docker-compose.yml.
+----- AI Results: ------
+Added =docker-compose.cgv1.yml= to both privileged sysd image dirs
+(=debian/12/privileged/vnc/xfce/bisos_deb12-sysd/= and the deb13 equivalent):
+- Same image/build/ports as docker-compose.yml.
+- Removes =cgroup: host= (unsupported on v1).
+- Mounts =/sys/fs/cgroup:ro= + =/sys/fs/cgroup/systemd:rw= (classic v1 recipe)
+  instead of the v2 single =/sys/fs/cgroup:rw= mount.
+- Distinct container_name (=mb-deb{12,13}-sysd-xfce-cgv1=) so it never clashes
+  with the v2 container; tmpfs and stop_signal unchanged.
+Run with: =docker compose -f docker-compose.cgv1.yml up -d= then
+=./verify.sh mb-deb13-sysd-xfce-cgv1 2224 5903 6903= (deb12: cgv1 2223 5902 6902).
+
+** TODO [#A] Verify the v1 overlay on a cgroup-v1 host :aiAndMe:
+SCHEDULED: <2026-08-08 Sat>
+Untested. On a cgroup-v1 host (e.g. the RHEL 8.10 work host, once
+=--privileged= is confirmed permitted), verify systemd boots and all three
+services come up via the v1 overlay, using =verify.sh= with the =-cgv1=
+container name and privileged ports.
+----- AI Results: ------
+
+** -
+
 
 # Local Variables:
 # eval: (setq-local toc-org-max-depth 4)

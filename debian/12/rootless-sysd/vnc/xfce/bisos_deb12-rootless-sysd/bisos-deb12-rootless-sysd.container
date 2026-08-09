@@ -1,0 +1,35 @@
+# Podman Quadlet unit --- rootless, per-user.
+#
+# This is the multi-tenant "dev box per engineer" form. Each engineer drops
+# this file at ~/.config/containers/systemd/bisos-deb12-rootless-sysd.container
+# and manages it through their OWN user systemd:
+#
+#   systemctl --user daemon-reload
+#   systemctl --user start  bisos-deb12-rootless-sysd
+#   systemctl --user enable bisos-deb12-rootless-sysd   # start at login
+#   loginctl enable-linger $USER                        # survive logout
+#
+# No root, no --privileged. Podman generates a transient .service from this.
+# Ports below are per-variant defaults; each engineer must pick unique host
+# ports (or sit behind a reverse proxy) when several run on one VM.
+
+[Unit]
+Description=BISOS deb12 rootless systemd VNC dev container
+
+[Container]
+Image=bisos/deb12-rootless-sysd-vnc-xfce:1
+ContainerName=bisos-deb12-rootless-sysd
+
+# Podman handles cgroup delegation + tmpfs for systemd. No --privileged.
+RunInit=false
+PublishPort=2225:22
+PublishPort=5904:5901
+PublishPort=6904:6901
+Volume=%h/shuttle:/shuttle/this
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=90
+
+[Install]
+WantedBy=default.target
