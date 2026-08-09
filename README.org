@@ -36,6 +36,8 @@ All images provide an XFCE4 desktop accessible via TigerVNC and noVNC.
   - [[#privileged][Privileged]]
   - [[#rootless-sysd][Rootless-sysd]]
 - [[#host-compatibility-cgroup-v1-vs-v2][Host Compatibility (cgroup v1 vs v2)]]
+- [[#host-os--podman-version-for-rootless-sysd-debian-12-vs-13][Host OS / Podman Version for rootless-sysd (Debian 12 vs 13)]]
+- [[#feature-parity-privileged-vs-rootless-sysd][Feature Parity: privileged vs rootless-sysd]]
 - [[#building][Building]]
   - [[#confined-build-first][Confined (build first):]]
   - [[#privileged-requires-confined-image-available-locally-or-on-dockerhub][Privileged (requires confined image available locally or on DockerHub):]]
@@ -155,8 +157,20 @@ engineer's unprivileged host UID. *Requires a cgroup v2 host with delegation.*
 Host prerequisites (Debian): =podman crun uidmap fuse-overlayfs
 dbus-user-session slirp4netns passt=. Enable cgroup v2 controller delegation
 for the user session (=Delegate=cpu io memory pids= drop-in on
-=user@.service=). The Quadlet =*.container= unit is the per-engineer form
-(=systemctl --user= + =loginctl enable-linger=) for multi-tenant hosts.
+=user@.service=).
+
+*Two run paths for the same image:* =run.bash= is a direct =podman run= for
+quick, one-off *testing*; the Quadlet =*.container= unit is the *persistent,
+per-engineer* form (=systemctl --user start/enable= + =loginctl enable-linger=)
+for the multi-tenant "N engineers on one host" model --- it survives logout and
+starts at login/boot.
+
+Before building, verify host readiness with the host-scoped check shipped in
+the =bisos.dockerProc= package:
+=/bisos/git/auth/bxRepos/bisos-pip/dockerProc/py3/bin/hostPodmanVerify.sh=
+(prints GO/NO-GO). Note: rootless Podman needs a real user session --- log in
+as the user directly (not =su=), or crun's systemd cgroup manager fails with an
+=sd-bus ... Input/output error=.
 
 * Host Compatibility (cgroup v1 vs v2)
 
@@ -184,14 +198,105 @@ Notes:
   reboot. If the host cannot be rebooted, use the v1 overlay (privileged) or
   provision a fresh v2 instance (RHEL 9 / Amazon Linux 2023 default to v2).
 
+* Host OS / Podman Version for rootless-sysd (Debian 12 vs 13)
+
+The rootless-sysd variant's smoothness depends on the *host's* Podman/crun
+version, which tracks the host Debian release. (The container is Debian 12/13
+either way; this is about the machine running podman.)
+
+| Host        | Podman | rootless-sysd experience                            |
+|-------------+--------+-----------------------------------------------------|
+| Debian 12   | 4.3.1  | works, with two old-Podman bugs accommodated below  |
+| Debian 13   | 5.4.2  | clean --- the accommodations are unnecessary        |
+
+On a *Debian 12 host* (older Podman/crun) two bugs surface; both are worked
+around in this repo so it still functions:
+- *Build:* buildah's per-RUN transient scope fails with
+  =sd-bus ... org.freedesktop.systemd1 ... Input/output error=. =build.bash=
+  passes =--isolation=chroot= to sidestep it (image layers are identical).
+- *Runtime:* =podman exec= into the systemd container fails with a nested
+  =cgroup.procs= "Permission denied". So =verify.sh= is *exec-free* (host-side
+  checks + an SSH session), and you manage the container over SSH, not exec.
+
+On a *Debian 13 host* (Podman 5.4.2) both are fixed: =--isolation=chroot= is
+unnecessary (but harmless) and =podman exec= works. The workarounds are kept
+so the *same scripts run unchanged* on a Debian 12 or 13 host.
+
+Requirements that apply on *both* (not Podman-version issues):
+- cgroup v2 host with controller delegation (rootless needs it).
+- a real user *login* session (not =su=) + =loginctl enable-linger= for the
+  persistent Quadlet per-engineer model.
+- Podman store (graphroot) on a large *local* disk --- not =/= if it is
+  near-full, and never NFS (overlay is unreliable on NFS). Set via
+  =~/.config/containers/storage.conf=.
+- =polkit.service= is masked in the sysd images: it fails inside the Debian
+  guest (no seat/session) and would otherwise leave systemd =degraded=,
+  regardless of host.
+
+Run =dockerProc/py3/bin/hostPodmanVerify.sh= to check these before building.
+
+* Feature Parity: privileged vs rootless-sysd
+
+Setting aside the security and multi-tenant differences: both are
+systemd-PID-1 containers, so *all systemd service-management features are
+identical* between them. They diverge only for workloads that reach through
+the container into the host *kernel/hardware* --- exactly what =--privileged=
+unlocks and a rootless user namespace cannot grant.
+
+*Identical in both* (no functional difference): systemd units + dependency
+ordering + =Restart=, *socket activation* (=.socket= units, e.g. nginx/Django),
+timers, journald, CPU/memory/PID resource limits, running servers/DBs/web apps
+(Airflow, Postgres, nginx, gunicorn/uvicorn), Unix sockets, tmpfs on =/run=,
+binding low ports *inside* the container.
+
+*Works in privileged, fails/limited under rootless-sysd:*
+
+| Capability a service might need                              | privileged | rootless-sysd |
+|--------------------------------------------------------------+------------+---------------|
+| Load kernel modules (=modprobe=)                               | yes        | no (hard wall) |
+| Mount real/loop/block filesystems; =.mount=/automount units    | yes        | no (tmpfs/bind/fuse only) |
+| systemd =RootImage=/=MountImage=/portable services             | yes        | no |
+| Create/access device nodes (=mknod=, raw disk, GPU)            | yes        | no |
+| =/dev/kvm= nested VMs, =/dev/net/tun= kernel VPNs              | yes        | only if device explicitly passed + permitted |
+| Write =sysctl= / =/proc/sys= (e.g. =ip_forward=)              | yes        | no (mostly read-only) |
+| Kernel networking: bridges, NAT, nftables modules, networkd  | yes        | limited (slirp4netns/pasta userns) |
+| Set the system clock (=settimeofday=/timesyncd stepping)       | yes        | no (hard wall) |
+| Device cgroup (=DeviceAllow=) and block-I/O limits (=IOWeight=) | yes      | no (controllers not delegated) |
+| Write to =/sys= (hardware/kernel knobs)                        | yes        | no (mostly read-only) |
+| Docker-in-Docker / full nested runtimes                      | yes        | heavily constrained |
+
+Nuance: some rootless gaps can be selectively re-opened by the host
+(=--device=, =--cap-add=, =--sysctl=, device-group membership); others can
+*never* be granted to a rootless user (kernel modules, =settimeofday=, mounting
+arbitrary block devices).
+
+*Rule of thumb:* userland + systemd → both are equal; needs the kernel to do
+something privileged on real hardware → only the privileged image can.
+
 * Building
+
+*Local-only workflow.* These images are meant to be built and used *locally*,
+not pushed to DockerHub. Always use =./build.bash -d= (local build); the bare
+=./build.bash= (multi-arch buildx/manifest → DockerHub) path is not the
+intended flow here.
+
+*Docker and Podman keep separate image stores.* The image format is identical
+(OCI), but the two engines do **not** share a local cache:
+- Docker: root daemon store under =/var/lib/docker/=.
+- Rootless Podman: per-user store under =~/.local/share/containers/storage/=.
+So an image built under one engine is invisible to the other --- even on the
+same host, same user. Build each variant with the engine you will run it with:
+docker variants (confined, privileged) with docker; the rootless-sysd variant
+with podman. To move an already-built image between stores without a registry:
+=docker save <img> | podman load= (or the reverse).
 
 ** Confined (build first):
 
 #+BEGIN_SRC bash
 cd debian/12/confined/vnc/xfce/bisos_deb12-fresh
-./build.bash -d          # local single-arch build
-./build.bash             # multi-arch build + push to DockerHub
+./build.bash -d          # local build (docker) --- the intended flow
+# for the rootless-sysd chain, build the base with podman instead:
+#   podman build -t bisos/deb12-fresh-vnc-xfce:1.21 .
 #+END_SRC
 
 ** Privileged (requires confined image available locally or on DockerHub):

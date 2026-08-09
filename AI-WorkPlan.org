@@ -205,16 +205,35 @@ Created =debian/12/rootless-sysd/vnc/xfce/bisos_deb12-rootless-sysd/= and
 Port assignments: deb12-rootless SSH=2225 VNC=5904 noVNC=6904;
                   deb13-rootless SSH=2226 VNC=5905 noVNC=6905.
 
-** TODO [#A] Build, run and verify rootless-sysd on a Podman host :aiAndMe:
+** DONE [#A] Build, run and verify rootless-sysd on a Podman host :aiAndMe:
 SCHEDULED: <2026-08-08 Sat>
-Untested — Podman is not installed on the current host. On a host with
-rootless Podman + cgroups v2 delegation + crun, verify:
-- =./build.bash -d= builds each image from its confined base.
-- =./run.bash= starts the container rootless (no --privileged).
-- =./verify.sh= passes all checks (incl. the rootless assertion).
-- The Quadlet unit starts via =systemctl --user= and survives with
-  =loginctl enable-linger=.
+CLOSED: [2026-08-09 Sun]
+Verify build/run/verify on a rootless Podman + cgroup v2 host.
 ----- AI Results: ------
+*deb13 rootless-sysd built, run, and VERIFIED* on a Debian 12 host
+(Podman 4.3.1, crun, cgroup v2). =verify.sh= = all PASS: systemd is PID 1,
+all three services active, rootless (non-privileged, non-root host UID),
+ports 2226/5905/6905 listening, noVNC HTTP responds, reachable via SSH & VNC.
+
+The bring-up surfaced a chain of issues (all resolved; details in Stage 4
+below and in the README "Host OS / Podman Version" section):
+1. Base image absent from podman's store → build.bash now auto-builds the
+   confined base (local-only; separate docker/podman stores).
+2. Build failed with =sd-bus ... Input/output error= (buildah per-RUN scope on
+   old Podman) → build.bash uses =--isolation=chroot=.
+3. Build ran only in a real user *login* session (not =su=), which needs
+   XDG_RUNTIME_DIR + user D-Bus + linger.
+4. Build filled =/= (96%); podman graphroot was on the full root fs →
+   relocated graphroot to a large local disk via storage.conf.
+5. =podman exec= into the systemd container fails on old Podman
+   (nested =cgroup.procs= permission) → verify.sh rewritten to be *exec-free*
+   (host-side checks + SSH). NB: keep =cgroup_manager = systemd=; the cgroupfs
+   experiment made the container fail to boot.
+6. systemd reported =degraded= due to =polkit.service= → polkit masked in all
+   four sysd Dockerfiles.
+
+Still untested: deb12 rootless-sysd (same pattern, high confidence); the
+Quadlet per-engineer path under =systemctl --user= (linger now enabled).
 
 ** DONE [#B] Update README.org and AI-DevStatus.org for the three-peer model :ai:
 SCHEDULED: <2026-08-08 Sat>
@@ -330,6 +349,83 @@ Untested. On a cgroup-v1 host (e.g. the RHEL 8.10 work host, once
 services come up via the v1 overlay, using =verify.sh= with the =-cgv1=
 container name and privileged ports.
 ----- AI Results: ------
+
+** DONE [#B] Fix confined build.bash tags; document local-only + separate stores :aiAndMe:
+SCHEDULED: <2026-08-08 Sat>
+CLOSED: [2026-08-08 Sat]
+Surfaced while resolving why the confined base image was absent from Podman's
+store. Add a hostPodmanVerify.sh for the rootless-sysd host prerequisite check.
+----- AI Results: ------
+- Fixed both confined =build.bash= files, which carried stale deb12 values
+  (=IMAGE="novnc-xfce-deb12" TAG="1.2.2"=) that did not match their
+  docker-compose.yml image tags. Now: deb13 = =deb13-fresh-vnc-xfce:4=,
+  deb12 = =deb12-fresh-vnc-xfce:1.21=. The base image had therefore been built
+  via =compose build= / manual =build -t=, never via its own build.bash.
+- Added =hostPodmanVerify.sh= (initially in the deb13 rootless-sysd dir).
+- README.org Building section: documented the *local-only* workflow (always
+  =build.bash -d=; DockerHub push path not intended here) and the
+  *docker/podman separate image stores* gotcha (OCI format identical, but
+  =/var/lib/docker= vs =~/.local/share/containers/storage= are not shared;
+  build each variant with the engine that runs it, or move via
+  =docker save | podman load=).
+- Confirmed on the current rootless host: hostPodmanVerify.sh returns GO
+  (5 pass, 2 warn: =io= controller not delegated (non-blocking), base image not
+  yet in podman's store).
+
+** DONE [#A] build.bash auto-resolves base; relocate host check to dockerProc :aiAndMe:
+SCHEDULED: <2026-08-08 Sat>
+CLOSED: [2026-08-08 Sat]
+Two refinements driven by an actual build failure.
+----- AI Results: ------
+- *build.bash auto-base:* both rootless-sysd =build.bash= files now check
+  =podman image exists $BASE_IMAGE= and, if missing, build the confined base
+  from =$BASE_CONTEXT= (=../../../../confined/vnc/xfce/bisos_deb{12,13}-fresh=)
+  before building the image --- so =build.bash -d= is self-contained
+  (local-only; the base is never pulled). deb13 base =bisos/deb13-fresh-vnc-xfce:4=,
+  deb12 base =bisos/deb12-fresh-vnc-xfce:1.21=.
+- *Session diagnostics:* the confined base build failed under rootless Podman
+  with =sd-bus call ... org.freedesktop.systemd1 ... Input/output error= ---
+  crun's systemd cgroup manager needs a reachable user systemd/D-Bus session,
+  which a bare cgroup check misses (e.g. when you =su= in). Added checks for
+  =XDG_RUNTIME_DIR=, =systemctl --user= reachability, and linger; the two
+  session checks are FAIL when the cgroup manager is =systemd=, WARN otherwise.
+  Fixes: log in directly (not =su=) + =loginctl enable-linger=, or build with
+  =podman --cgroup-manager=cgroupfs=.
+- *Relocation (separation of concerns):* =hostPodmanVerify.sh= is HOST-scoped,
+  not image-scoped, so it moved to
+  =/bisos/git/auth/bxRepos/bisos-pip/dockerProc/py3/bin/hostPodmanVerify.sh=
+  (next to =dockerProc-sbom.cs=), and the per-image copy was deleted. The
+  image-scoped base-image-presence check (and the base-image arg) were dropped
+  from it --- that concern lives in each image's =build.bash=/=verify.sh=.
+  (Larger bisos.dockerProc plans deferred by the developer.)
+
+** DONE [#A] Finalize rootless-sysd: chroot build, exec-free verify, polkit, docs :aiAndMe:
+SCHEDULED: <2026-08-09 Sun>
+CLOSED: [2026-08-09 Sun]
+The remaining fixes from the deb13 bring-up, plus the Debian 12-vs-13 doc.
+----- AI Results: ------
+- *build.bash --isolation=chroot:* both rootless-sysd build.bash files pass
+  =--isolation=chroot= on every podman build (base + image + multi-arch) to
+  avoid the buildah per-RUN =sd-bus= failure on old Podman. Runtime unchanged
+  (systemd cgroup manager kept).
+- *verify.sh rewritten exec-free:* both rootless-sysd verify.sh now avoid
+  =podman exec= (broken on Podman 4.3.1 for systemd containers). They use
+  podman inspect + host ports + noVNC HTTP, then an SSH session (sshpass or
+  key) for =systemd is PID 1= / service =is-active= / =is-system-running=.
+  =degraded= is WARN (gates on the three services being active), not FAIL.
+- *polkit masked:* =RUN systemctl mask polkit.service= added to all four sysd
+  Dockerfiles (privileged + rootless-sysd, deb12/deb13) so systemd reports
+  =running= not =degraded=; polkit is unusable in a container and nothing here
+  needs it (sudo is passwordless).
+- *hostPodmanVerify.sh graphroot check:* added check #8 --- FAIL if graphroot
+  is on NFS or its filesystem is >=95% full/<3G free, WARN at >=90%.
+- *README:* added "Host OS / Podman Version for rootless-sysd (Debian 12 vs
+  13)" --- Debian 12 (Podman 4.3.1) needs the chroot + exec-free-verify
+  accommodations (kept for portability); Debian 13 (Podman 5.4.2) fixes both;
+  version-independent requirements (cgroup v2, login session + linger,
+  graphroot on local disk, polkit masked) listed.
+- *AI-DevStatus.org:* updated to reflect deb13 rootless-sysd verified and the
+  host-version considerations.
 
 ** -
 

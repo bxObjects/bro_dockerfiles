@@ -2,8 +2,8 @@
 
 # Modify the following variables as appropraite when building new base inmages.
 DOCKER_HUB_USER="bisos"
-IMAGE="novnc-xfce-deb12"
-TAG="1.2.2"
+IMAGE="deb12-fresh-vnc-xfce"
+TAG="1.21"
 PLATFORMS=linux/amd64,linux/arm64
 
 # Check for the local build flag -d

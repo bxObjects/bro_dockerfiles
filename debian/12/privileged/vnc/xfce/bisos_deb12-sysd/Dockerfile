@@ -37,6 +37,10 @@ COPY dockerConf/vncserver.service  /etc/systemd/system/vncserver.service
 COPY dockerConf/novnc.service      /etc/systemd/system/novnc.service
 COPY dockerConf/sshd-container.service /etc/systemd/system/sshd-container.service
 
+# Mask polkit --- it fails inside containers (no seat/active session) and would
+# leave systemd "degraded"; nothing here uses it (sudo is passwordless).
+RUN systemctl mask polkit.service
+
 # Enable the services so systemd starts them at boot.
 RUN systemctl enable vncserver novnc sshd-container dbus
 

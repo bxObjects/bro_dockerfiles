@@ -26,23 +26,57 @@ Fill in the sections below when asked to update, following the structure provide
 
 * Current State
 
-As of 2026-08-08. Stages 1--4 authored; Stage 3 (rootless-sysd) and Stage 4
-(cgroup-v1 overlay) added this session.
+As of 2026-08-09. Stages 1--4 authored; Stage 3 (rootless-sysd) and Stage 4
+(cgroup-v1 overlay) added, and the rootless-sysd bring-up completed.
 
 The repo has a three-peer image hierarchy along an *init/isolation profile*
 axis: =confined= (docker, unprivileged, no systemd), =privileged= (docker,
 =--privileged=, systemd PID 1), and =rootless-sysd= (podman, rootless, systemd
 PID 1). Six image specifications across two Debian releases and three profiles.
 README.org describes the current state including a host cgroup v1/v2
-compatibility matrix.
+compatibility matrix and a Debian-12-vs-13 host section.
 
-Tested this session: the *deb13 privileged sysd* image was built and run on a
-cgroup v2 Debian host and verified — systemd is PID 1, all three services
-active, reachable via SSH and VNC, =verify.sh= all green. Two build/run bugs
-were found and fixed in the process (see Key Design Decisions).
+Verified: *deb13 privileged sysd* (docker, cgroup v2 host) and *deb13
+rootless-sysd* (Podman 4.3.1, cgroup v2 host) --- both boot systemd as PID 1,
+all three services active, reachable via SSH/VNC/noVNC, verify.sh all PASS.
+The rootless bring-up drove several fixes (auto-base build, =--isolation=chroot=
+for the buildah sd-bus bug, graphroot relocation off the full root fs,
+exec-free SSH-based verify.sh for old Podman, polkit masked) --- see Key
+Design Decisions and AI-WorkPlan Stages 3--4.
 
-Still untested: deb12 privileged; both rootless-sysd images (no Podman host
-available yet); the cgroup-v1 overlay (no v1 host available yet).
+Still untested: deb12 privileged and deb12 rootless-sysd (same patterns, high
+confidence); the Quadlet per-engineer path under =systemctl --user=; the
+cgroup-v1 privileged overlay (no v1 host available yet).
+
+* Continuation: Next on the RHEL 8.10 Host (different machine / fresh Claude)
+
+Work continues on a corporate RHEL 8.10 host on AWS with a fresh Claude (no
+memory of the prior session). Orientation:
+
+1. Run =/bx-confirm0= and confirm the model.
+2. *Key constraint:* RHEL 8.10 defaults to *cgroup v1* and *cannot be rebooted*,
+   so it stays on v1. Therefore *rootless-sysd will NOT work there* (it needs
+   cgroup v2). Confirm with =stat -fc %T /sys/fs/cgroup= (expect =tmpfs= = v1;
+   =cgroup2fs= would be v2).
+3. *Primary task:* the runnable systemd variant on a v1 host is *privileged*
+   via the =docker-compose.cgv1.yml= overlay (see AI-WorkPlan Stage 4). Build,
+   run and verify it:
+     : docker compose -f docker-compose.cgv1.yml up -d
+     : ./verify.sh mb-deb13-sysd-xfce-cgv1 2224 5903 6903
+   The *privileged* verify.sh is the original =docker exec=-based one --- that
+   is fine here (the exec bug was rootless-Podman-4.3.1-specific; docker exec
+   works). Only the *rootless-sysd* verify.sh was rewritten to be exec-free.
+4. *First confirm =--privileged= is permitted* on that host (AI-WorkPlan Stage 4
+   has the procedure: authz-plugin check + empirical
+   =docker run --privileged ... mount= test + runtime-security/policy check).
+   "root can" != "security permits" on an audited corporate host.
+5. *Host packages are dnf, not apt* --- see =dnfPkgsList= in
+   =dockerProc/py3/bin/dockerProc-sbom.pcs= (bisos.sbom has no dnf helper yet;
+   install manually).
+6. If the host is ever moved to cgroup v2 (a fresh v2 instance --- RHEL 9 /
+   Amazon Linux 2023 --- or a reboot with
+   =systemd.unified_cgroup_hierarchy=1=), rootless-sysd becomes available; run
+   =dockerProc/py3/bin/hostPodmanVerify.sh= first.
 
 * Architecture
 
@@ -194,6 +228,38 @@ is unavailable there; use the privileged v1 overlay (if =--privileged= permitted
   =FROM= or the build-time apt/systemctl steps fail with permission-denied, and
   =/sbin/init= needs root (namespaced root under rootless Podman). Fixed this
   session — builds failed until this was added.
+
+- *polkit masked in sysd images* — =polkit.service= fails inside a container
+  (no seat/active session) and leaves systemd =degraded=. Masked in all four
+  sysd Dockerfiles so =is-system-running= reports =running=. Nothing here uses
+  polkit (sudo is passwordless); the only loss is GUI auth prompts.
+
+- *--isolation=chroot for rootless builds (old Podman)* — on Debian 12's
+  Podman 4.3.1, buildah's per-RUN transient scope fails with
+  =sd-bus ... Input/output error=. rootless-sysd build.bash uses
+  =--isolation=chroot= to sidestep it. Unnecessary on Debian 13 / Podman 5.4.2
+  but harmless; kept for portability. Image layers are identical.
+
+- *keep systemd cgroup manager (not cgroupfs)* — switching Podman to the
+  cgroupfs manager made the systemd container fail to boot. The systemd manager
+  is correct for runtime; the build-time sd-bus issue is handled by chroot
+  isolation, not by changing the manager.
+
+- *verify.sh is exec-free (SSH-based)* — =podman exec= into a rootless systemd
+  container fails on old Podman (nested =cgroup.procs= permission). verify.sh
+  therefore uses podman inspect + host ports + noVNC HTTP + an SSH session
+  (never =exec=). SSH is the intended management path anyway; works on old and
+  new Podman alike. =degraded= is a WARN, gating only on the three services.
+
+- *graphroot on a large local disk* — rootless Podman's store must not sit on a
+  near-full =/= (build fails "no space left on device") and must not be on NFS
+  (overlay unreliable). Set via =~/.config/containers/storage.conf=; a host
+  concern, checked by =hostPodmanVerify.sh=.
+
+- *Debian 12 vs 13 host* — the rootless-sysd friction (sd-bus build error,
+  broken =podman exec=) is specific to Debian 12's Podman 4.3.1. Debian 13's
+  Podman 5.4.2 fixes both. Host-storage, login-session/linger, and polkit
+  (guest-side) considerations apply regardless of host version.
 
 # Local Variables:
 # eval: (setq-local toc-org-max-depth 4)
