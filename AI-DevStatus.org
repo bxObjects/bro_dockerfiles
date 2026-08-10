@@ -21,12 +21,11 @@ architecture, what works, what is untested and the design decisions made so far.
 This file is maintained by Claude. Updates are typically triggered by the
 =/bx-update-status= slash command, after major interactions, or before a release.
 
-Note to a fresh Claude: this file is intentionally sparse at project start.
-Fill in the sections below when asked to update, following the structure provided.
-
 * Current State
 
-As of 2026-08-09. All Stage 1--4 TODOs now complete.
+As of 2026-08-10. All Stage 1--4 TODOs complete. Two post-Stage-4 fixes applied
+this session: =bystar= home directory permissions (700→755) and =/tmp= noexec
+removed via a =tmp-exec.service= systemd oneshot. Both verified on RHEL 8.10.
 
 The repo has a three-peer image hierarchy along an *init/isolation profile*
 axis: =confined= (docker, unprivileged, no systemd), =privileged= (docker,
@@ -36,39 +35,10 @@ PID 1). Six image specifications across two Debian releases and three profiles.
 Verified end-to-end:
 - *deb13 privileged sysd on cgroup v2* (prior session, Debian host) — PASS
 - *deb13 rootless-sysd on cgroup v2* (prior session, Debian host) — PASS
-- *deb13 privileged sysd on cgroup v1* (this session, RHEL 8.10) — PASS
+- *deb13 privileged sysd on cgroup v1* (RHEL 8.10, this session) — PASS (11/11)
 
-Still untested: deb12 variants (high confidence same patterns); Quadlet
-per-engineer path; confined images after rename.
-
-* Continuation: Current Session on RHEL 8.10
-
-Now running on the RHEL 8.10 host. Context confirmed. Key facts:
-
-1. *cgroup version:* RHEL 8.10 is on cgroup v1 (=stat -fc %T /sys/fs/cgroup=
-   will return =tmpfs=). Cannot reboot. Therefore *rootless-sysd is unavailable*.
-
-2. *Primary task:* verify the privileged cgroup-v1 overlay (Stage 4 open TODO).
-   - First confirm =--privileged= is permitted:
-     : docker run --rm --privileged busybox sh -c 'mount -t tmpfs none /mnt && echo PRIV_OK'
-     =PRIV_OK= = permitted. Also check for auth plugins and runtime-security
-     agents (falco/twistlock/prisma/aqua):
-     : docker info --format '{{.Plugins.Authorization}}'
-   - If permitted, build and run:
-     : cd debian/13/privileged/vnc/xfce/bisos_deb13-sysd
-     : ./build.bash -d
-     : docker compose -f docker-compose.cgv1.yml up -d
-     : ./verify.sh mb-deb13-sysd-xfce-cgv1 2224 5903 6903
-   - Note: =docker exec= works fine here (the exec-free workaround was
-     rootless-Podman-4.3.1-specific only).
-
-3. *Host packages:* =dnf=, not =apt=. Docker Engine should already be
-   installed; if not, use the RHEL Docker CE repo.
-
-4. *If =--privileged= is blocked:* only =confined= images are available on
-   this host until it is replaced with a cgroup-v2 instance (RHEL 9 /
-   Amazon Linux 2023) or rebooted with
-   =systemd.unified_cgroup_hierarchy=1= in the kernel args.
+Still untested: deb12 variants (same pattern, high confidence); rootless-sysd
+deb12; Quadlet per-engineer path; confined images after rename.
 
 * Architecture
 
@@ -90,7 +60,8 @@ debian/
 - Base: =debian:12.12= / =debian:13.1= built from scratch
 - Init: =dockerConf/entrypoint.sh= starts sshd, VNC, noVNC directly; =sleep infinity= keeps container alive
 - VNC xstartup: =dockerConf/xstartup= launches =startxfce4=
-- Volume: =./= mounted at =/shuttle/this=; =raw-bisos/= symlinked into =$HOME= at runtime
+- User: =bystar= created via =useradd= with =chmod 755 /home/bystar= (useradd default is 700)
+- Volume: =./= mounted at =/shuttle/this=; =raw-bisos/= mounted at =$HOME/raw-bisos= at runtime
 - Ports (host): SSH=2222, VNC=5901, noVNC=6901
 
 ** Privileged images (=bisos_deb{12,13}-sysd=)
@@ -98,15 +69,19 @@ debian/
 - Base: =FROM bisos/deb12-fresh-vnc-xfce:1.21= (or deb13 equivalent) — layers on confined
 - =USER root= immediately after FROM (base ends as =USER bystar=; systemd + build steps need root)
 - Init: =/sbin/init= (systemd PID 1); =STOPSIGNAL SIGRTMIN+3=
-- Services: =vncserver.service=, =novnc.service=, =sshd-container.service= installed and enabled
-- Suppressed units: udev, getty, plymouth, rescue, initctl — these do not work in containers
-- docker-compose.yml (v2 host): =privileged: true=, =cgroup: host=, =/sys/fs/cgroup= rw, =/sys/fs/fuse=,
-  tmpfs on =/tmp /run /run/lock /var/log/journal=
+- Services: =vncserver.service=, =novnc.service=, =sshd-container.service=, =tmp-exec.service= installed and enabled
+- =tmp-exec.service=: oneshot that runs =mount -o remount,exec /tmp= early in boot;
+  needed because Docker's tmpfs mounts apply =noexec= by default
+- Suppressed units: udev, getty, plymouth, rescue, initctl
+- Masked: =polkit.service= (fails in containers, would leave systemd =degraded=)
+- docker-compose.yml (v2 host): =privileged: true=, =cgroup: host=, =/sys/fs/cgroup= rw,
+  =/sys/fs/fuse=, tmpfs on =/tmp /run /run/lock /var/log/journal=
 - docker-compose.cgv1.yml (v1 host): =privileged: true=, NO =cgroup: host=,
-  =/sys/fs/cgroup:ro= + =/sys/fs/cgroup/systemd:rw=, container_name suffixed =-cgv1=
+  =/sys/fs/cgroup:ro= + =/sys/fs/cgroup/systemd:rw=, container_name suffixed =-cgv1=;
+  includes explicit =networks:= block with =subnet: 10.254.13.0/24= (deb13) to handle
+  hosts where Docker's default bridge pool is exhausted
+- =build.bash=: supports =-d= (local build) and =-n= (=--no-cache=)
 - Ports (host): deb12 SSH=2223 VNC=5902 noVNC=6902; deb13 SSH=2224 VNC=5903 noVNC=6903
-- Requires: Debian 12/13 host, Docker Engine, cgroupv2 (=stat -fc %T /sys/fs/cgroup= → =cgroup2fs=)
-  for docker-compose.yml; use the cgv1 overlay on cgroup v1 hosts
 
 ** Rootless-sysd images (=bisos_deb{12,13}-rootless-sysd=)
 
@@ -116,9 +91,12 @@ debian/
   =/sys/fs/cgroup= mount, NO cgroupns. Podman does cgroup delegation + tmpfs itself.
 - Per-engineer multi-tenant form: Quadlet =*.container= unit (=systemctl --user=
   + =loginctl enable-linger=).
+- =build.bash=: uses =--isolation=chroot= for all podman builds; auto-builds confined
+  base if missing in Podman's store.
+- =verify.sh=: exec-free (SSH-based); =degraded= is WARN not FAIL.
 - Ports (host): deb12 SSH=2225 VNC=5904 noVNC=6904; deb13 SSH=2226 VNC=5905 noVNC=6905
 - Requires: rootless Podman + crun + cgroup v2 with controller delegation.
-  Does NOT work on cgroup v1 (no rootless delegation model).
+  Does NOT work on cgroup v1.
 
 ** Host cgroup v1/v2 compatibility
 
@@ -128,130 +106,99 @@ debian/
 | privileged sysd | works via docker-compose.cgv1.yml | works (.yml)   |
 | rootless-sysd   | does not work                     | works          |
 
-You cannot switch v1<->v2 at runtime (chosen at boot). RHEL 8 defaults to v1;
-flip via =grubby ... systemd.unified_cgroup_hierarchy=1= + reboot, or provision
-a fresh v2 instance. If a host cannot be rebooted and stays on v1, rootless-sysd
-is unavailable there; use the privileged v1 overlay (if =--privileged= permitted).
+Check with: =stat -fc %T /sys/fs/cgroup= (=cgroup2fs= = v2; =tmpfs= = v1/hybrid).
+RHEL 8 defaults to v1; flip via =grubby ... systemd.unified_cgroup_hierarchy=1= + reboot.
 
 ** Key files per image
 
-| File                            | Purpose                                      |
-|---------------------------------+----------------------------------------------|
-| =Dockerfile=                    | Image definition                             |
-| =docker-compose.yml=            | Local run config (docker; v2 host)           |
-| =docker-compose.cgv1.yml=       | (privileged) cgroup-v1 host overlay          |
-| =build.bash=                    | Multi-arch build + push (docker / podman)    |
-| =run.bash=                      | (rootless-sysd) podman run launcher          |
-| =*.container=                   | (rootless-sysd) Podman Quadlet unit          |
-| =verify.sh=                     | (sysd) host-side smoke test                  |
-| =dockerConf/entrypoint.sh=      | (confined) Manual service startup            |
-| =dockerConf/xstartup=           | (confined) VNC → XFCE4 startup              |
-| =dockerConf/vncserver.service=  | (sysd) systemd unit for TigerVNC             |
-| =dockerConf/novnc.service=      | (sysd) systemd unit for noVNC                |
-| =dockerConf/sshd-container.service= | (sysd) systemd unit for sshd             |
-| =raw-bisos/installRawBisos.sh=  | (confined) Bootstraps Raw-BISOS in container |
+| File                                | Purpose                                      |
+|-------------------------------------+----------------------------------------------|
+| =Dockerfile=                        | Image definition                             |
+| =docker-compose.yml=                | Local run config (docker; v2 host)           |
+| =docker-compose.cgv1.yml=           | (privileged) cgroup-v1 host overlay          |
+| =build.bash=                        | Multi-arch build + push; =-d= local, =-n= no-cache |
+| =run.bash=                          | (rootless-sysd) podman run launcher          |
+| =*.container=                       | (rootless-sysd) Podman Quadlet unit          |
+| =verify.sh=                         | (sysd) host-side smoke test                  |
+| =dockerConf/entrypoint.sh=          | (confined) Manual service startup            |
+| =dockerConf/xstartup=               | (confined) VNC → XFCE4 startup              |
+| =dockerConf/vncserver.service=      | (sysd) systemd unit for TigerVNC             |
+| =dockerConf/novnc.service=          | (sysd) systemd unit for noVNC                |
+| =dockerConf/sshd-container.service= | (sysd) systemd unit for sshd                 |
+| =dockerConf/tmp-exec.service=       | (sysd) oneshot: remount /tmp exec            |
+| =raw-bisos/installRawBisos.sh=      | (confined) Bootstraps Raw-BISOS in container |
 
 * What Works
 
 - *deb13 privileged sysd on cgroup v2 (Debian host): VERIFIED* — prior session.
-  systemd is PID 1, all three services active, reachable via SSH and VNC,
-  =verify.sh= all green.
+  systemd PID 1, all three services active, SSH/VNC reachable, =verify.sh= all green.
 - *deb13 privileged sysd on cgroup v1 (RHEL 8.10): VERIFIED* — this session.
-  All 11 verify.sh checks pass: systemd PID 1, system state =running=, all
-  three services active, ports 2224/5903/6903 listening, noVNC HTTP responds.
-  Note: host had exhausted Docker's default bridge pool; fixed by adding
-  =networks:= block with explicit =subnet: 10.254.13.0/24= to
-  =docker-compose.cgv1.yml=.
-- *deb13 rootless-sysd: VERIFIED* — prior session on Debian cgroup-v2 host.
-- Confined deb12 and deb13 images: Dockerfile, compose, build.bash, all
-  dockerConf files complete and consistent.
-- Directory hierarchy: three-peer profile axis, clean, all path references updated.
-- README.org and this file: updated for the three-peer model + cgroup matrix.
+  All 11 verify.sh checks pass. =/home/bystar= is 755. =/tmp= is exec (no noexec).
+- *deb13 rootless-sysd on cgroup v2: VERIFIED* — prior session on Debian host.
+- Confined deb12 and deb13 images: complete and consistent.
+- Directory hierarchy: three-peer profile axis, all path references correct.
 
 * What Is Untested
 
-- deb12 privileged sysd: not built/run on either cgroup v1 or v2 (deb13
-  verified on both; deb12 is the same pattern, high confidence but unconfirmed).
-- rootless-sysd (deb12 and deb13): needs a rootless Podman + crun + cgroup v2
-  host to verify build.bash, run.bash, verify.sh (incl. the rootless assertion),
-  and the Quadlet unit under =systemctl --user=.
+- deb12 privileged sysd: not built/run (deb13 verified on both v1 and v2; deb12
+  is identical pattern, high confidence but unconfirmed).
+- rootless-sysd deb12: same pattern as deb13 rootless-sysd, unconfirmed.
+- rootless-sysd deb13 Quadlet path: =systemctl --user= + linger not exercised.
 - Confined images: not re-tested after the =desktop= → =confined/vnc= rename,
-  though the Dockerfile and scripts are unchanged.
+  though Dockerfile and scripts are unchanged.
 
 * Key Design Decisions
 
-- *init/isolation profile as the hierarchy dimension* — originally framed as
-  "confined/privileged (privilege level)"; broadened to an init/isolation
-  profile axis when =rootless-sysd= was added as a third peer. The peers are
-  named by property, not by tool (=confined=, =privileged=, =rootless-sysd= —
-  not "docker"/"podman"), so a future reader isn't misled. Explicit directory
-  level (not a name suffix) keeps variants clean.
+- *init/isolation profile as the hierarchy dimension* — three peers named by
+  property (=confined=, =privileged=, =rootless-sysd=), not by tool (docker/podman).
 
-- *rootless-sysd collapses the confined/privileged tradeoff* — it delivers the
-  =privileged= payoff (systemd PID 1) with the =confined= security posture
-  (unprivileged, userspace) by running under rootless Podman. Motivated by the
-  multi-tenant "N engineers on one shared VM" case where Docker =--privileged=
-  fails a security review. Cost: requires cgroup v2.
+- *rootless-sysd collapses the confined/privileged tradeoff* — systemd PID 1
+  with unprivileged posture, via rootless Podman. Requires cgroup v2.
 
 - *Privileged/rootless images layer on confined* — =FROM bisos/deb{12,13}-fresh-vnc-xfce=
-  means package updates to the confined image flow through automatically on
-  rebuild. No duplication of the apt-get install list.
+  so package updates flow through on rebuild; no duplication of apt-get installs.
 
-- *VNC/noVNC/sshd as systemd units in sysd images* — replaces the manual
-  =entrypoint.sh= approach. Gives restart-on-failure, proper dependency ordering
-  (noVNC after VNC), and =systemctl status= visibility.
+- *VNC/noVNC/sshd as systemd units* — restart-on-failure, dependency ordering,
+  =systemctl status= visibility. Replaces manual =entrypoint.sh= approach.
 
-- *udev suppressed* — =systemd-udevd= is removed from the sysd images because
-  there is no real hardware to manage inside a container. All other systemd
-  functionality is preserved.
+- *bystar home dir 755* — =useradd= default is 700; =chmod 755= added to confined
+  Dockerfiles. Privileged/rootless inherit via FROM.
 
-- *cgroup: host (v2)* — the compose key is =cgroup: host= (maps to
-  =--cgroupns=host=), NOT =cgroupns: host= (which the Compose schema rejects).
-  Needed on v2 so systemd manages service scopes in the host cgroup namespace.
-  Fixed this session — the original files used the invalid =cgroupns= key.
+- *tmp-exec.service oneshot* — Docker's =tmpfs:= shorthand applies =noexec= by
+  default. A systemd oneshot running =mount -o remount,exec /tmp= at boot corrects
+  this to match Debian's default. Simpler alternatives (compose long-form tmpfs,
+  tmp.mount.d drop-in) do not work because Docker mounts /tmp before systemd starts.
 
-- *cgroup-v1 overlay for old hosts* — =docker-compose.cgv1.yml= supports hosts
-  still on cgroup v1 (e.g. RHEL 8 default, unrebootable): drops =cgroup: host=
-  (cgroup namespaces are a newer-kernel feature) and uses the classic v1 mount
-  (=/sys/fs/cgroup:ro= + =/sys/fs/cgroup/systemd:rw=).
+- *cgroup: host (v2)* — correct Compose key (maps to =--cgroupns=host=); the
+  invalid =cgroupns: host= key was used originally and rejected by the schema.
 
-- *USER root in sysd Dockerfiles* — the confined base ends as =USER bystar=,
-  so the privileged/rootless Dockerfiles switch to =USER root= right after
-  =FROM= or the build-time apt/systemctl steps fail with permission-denied, and
-  =/sbin/init= needs root (namespaced root under rootless Podman). Fixed this
-  session — builds failed until this was added.
+- *cgroup-v1 overlay* — =docker-compose.cgv1.yml= drops =cgroup: host= and uses
+  classic v1 recipe (=/sys/fs/cgroup:ro= + =/sys/fs/cgroup/systemd:rw=).
 
-- *polkit masked in sysd images* — =polkit.service= fails inside a container
-  (no seat/active session) and leaves systemd =degraded=. Masked in all four
-  sysd Dockerfiles so =is-system-running= reports =running=. Nothing here uses
-  polkit (sudo is passwordless); the only loss is GUI auth prompts.
+- *Explicit subnet in cgv1 compose* — shared hosts exhaust Docker's default bridge
+  pool (172.17--172.31, 192.168/16). Explicit =subnet: 10.254.13.0/24= sidesteps
+  "all predefined address pools have been fully subnetted". Adjust per host.
 
-- *--isolation=chroot for rootless builds (old Podman)* — on Debian 12's
-  Podman 4.3.1, buildah's per-RUN transient scope fails with
-  =sd-bus ... Input/output error=. rootless-sysd build.bash uses
-  =--isolation=chroot= to sidestep it. Unnecessary on Debian 13 / Podman 5.4.2
-  but harmless; kept for portability. Image layers are identical.
+- *build.bash -n for --no-cache* — Docker layer cache can serve stale layers after
+  Dockerfile changes if intermediate layers are unchanged. =-n= forces a clean build.
 
-- *keep systemd cgroup manager (not cgroupfs)* — switching Podman to the
-  cgroupfs manager made the systemd container fail to boot. The systemd manager
-  is correct for runtime; the build-time sd-bus issue is handled by chroot
-  isolation, not by changing the manager.
+- *USER root in sysd Dockerfiles* — confined base ends as =USER bystar=; privileged
+  Dockerfiles need =USER root= right after =FROM= for apt/systemctl build steps.
 
-- *verify.sh is exec-free (SSH-based)* — =podman exec= into a rootless systemd
-  container fails on old Podman (nested =cgroup.procs= permission). verify.sh
-  therefore uses podman inspect + host ports + noVNC HTTP + an SSH session
-  (never =exec=). SSH is the intended management path anyway; works on old and
-  new Podman alike. =degraded= is a WARN, gating only on the three services.
+- *polkit masked* — fails in containers (no seat/active session), leaves systemd
+  =degraded=. Masked in all four sysd Dockerfiles.
 
-- *graphroot on a large local disk* — rootless Podman's store must not sit on a
-  near-full =/= (build fails "no space left on device") and must not be on NFS
-  (overlay unreliable). Set via =~/.config/containers/storage.conf=; a host
-  concern, checked by =hostPodmanVerify.sh=.
+- *--isolation=chroot for rootless builds (old Podman)* — Podman 4.3.1 buildah
+  sd-bus failure workaround. Harmless on newer Podman; kept for portability.
 
-- *Debian 12 vs 13 host* — the rootless-sysd friction (sd-bus build error,
-  broken =podman exec=) is specific to Debian 12's Podman 4.3.1. Debian 13's
-  Podman 5.4.2 fixes both. Host-storage, login-session/linger, and polkit
-  (guest-side) considerations apply regardless of host version.
+- *verify.sh exec-free (rootless-sysd)* — =podman exec= broken on old Podman for
+  systemd containers. Uses host ports + noVNC HTTP + SSH session instead.
+
+- *graphroot on large local disk* — rootless Podman store must not be on near-full
+  or NFS filesystem. Set via =~/.config/containers/storage.conf=.
+
+- *Debian 12 vs 13 host (rootless-sysd)* — Podman 4.3.1 (Debian 12) needs chroot
+  isolation + exec-free verify. Podman 5.4.2 (Debian 13) fixes both.
 
 # Local Variables:
 # eval: (setq-local toc-org-max-depth 4)
