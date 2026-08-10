@@ -40,6 +40,12 @@ COPY dockerConf/sshd-container.service /etc/systemd/system/sshd-container.servic
 # leave systemd "degraded"; nothing here uses it (sudo is passwordless).
 RUN systemctl mask polkit.service
 
+# Remount /tmp with exec --- Docker's tmpfs mounts apply noexec by default,
+# which differs from Debian's /tmp. A drop-in on tmp.mount corrects this.
+RUN mkdir -p /etc/systemd/system/tmp.mount.d \
+ && printf '[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev\n' \
+    > /etc/systemd/system/tmp.mount.d/exec.conf
+
 # Enable the services so systemd starts them at boot.
 RUN systemctl enable vncserver novnc sshd-container dbus
 
