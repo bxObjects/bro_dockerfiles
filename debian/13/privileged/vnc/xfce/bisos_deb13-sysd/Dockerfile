@@ -31,23 +31,19 @@ RUN find /lib/systemd/system/sysinit.target.wants/ -type l \
           /lib/systemd/system/rescue.service \
           /lib/systemd/system/rescue.target 2>/dev/null || true
 
-# Install systemd service units for VNC, noVNC and sshd.
+# Install systemd service units for VNC, noVNC, sshd, and /tmp remount.
 COPY dockerConf/vncserver.service      /etc/systemd/system/vncserver.service
 COPY dockerConf/novnc.service          /etc/systemd/system/novnc.service
 COPY dockerConf/sshd-container.service /etc/systemd/system/sshd-container.service
+COPY dockerConf/tmp-exec.service       /etc/systemd/system/tmp-exec.service
 
 # Mask polkit --- it fails inside containers (no seat/active session) and would
 # leave systemd "degraded"; nothing here uses it (sudo is passwordless).
 RUN systemctl mask polkit.service
 
-# Remount /tmp with exec --- Docker's tmpfs mounts apply noexec by default,
-# which differs from Debian's /tmp. A drop-in on tmp.mount corrects this.
-RUN mkdir -p /etc/systemd/system/tmp.mount.d \
- && printf '[Mount]\nOptions=mode=1777,strictatime,nosuid,nodev\n' \
-    > /etc/systemd/system/tmp.mount.d/exec.conf
-
 # Enable the services so systemd starts them at boot.
-RUN systemctl enable vncserver novnc sshd-container dbus
+# tmp-exec remounts /tmp with exec --- Docker's tmpfs applies noexec by default.
+RUN systemctl enable vncserver novnc sshd-container dbus tmp-exec
 
 # systemd is PID 1.
 STOPSIGNAL SIGRTMIN+3
