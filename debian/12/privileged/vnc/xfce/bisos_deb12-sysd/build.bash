@@ -8,10 +8,13 @@ TAG="1"
 PLATFORMS=linux/amd64,linux/arm64
 
 LOCAL_BUILD=0
-getopts 'd' opt 2> /dev/null
-if [ $opt == 'd' ]; then
-  LOCAL_BUILD=1
-fi
+NO_CACHE=""
+while getopts 'dn' opt 2>/dev/null; do
+  case $opt in
+    d) LOCAL_BUILD=1 ;;
+    n) NO_CACHE="--no-cache" ;;
+  esac
+done
 
 if [ $LOCAL_BUILD == 0 ]; then
 
@@ -50,7 +53,7 @@ echo
 # available locally or on DockerHub before building this image.
 
 if [ $LOCAL_BUILD == 1 ]; then
-  docker build -t $FULL_IMAGE_NAME .
+  docker build $NO_CACHE -t $FULL_IMAGE_NAME .
 else
-  docker buildx build --platform $PLATFORMS -t $FULL_IMAGE_NAME --push .
+  docker buildx build $NO_CACHE --platform $PLATFORMS -t $FULL_IMAGE_NAME --push .
 fi
