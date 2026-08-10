@@ -71,7 +71,8 @@ RUN apt-get install -y --no-install-recommends \
 RUN useradd \
     -m $USERNAME -p "$(openssl passwd -1 $PASSWD)" \
     -s /bin/bash \
-    -G sudo
+    -G sudo \
+ && chmod 755 /home/$USERNAME
 
 # Allow members of group sudo to execute any command
 RUN echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers

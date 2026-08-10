@@ -342,13 +342,30 @@ Added =docker-compose.cgv1.yml= to both privileged sysd image dirs
 Run with: =docker compose -f docker-compose.cgv1.yml up -d= then
 =./verify.sh mb-deb13-sysd-xfce-cgv1 2224 5903 6903= (deb12: cgv1 2223 5902 6902).
 
-** TODO [#A] Verify the v1 overlay on a cgroup-v1 host :aiAndMe:
+** DONE [#A] Verify the v1 overlay on a cgroup-v1 host :aiAndMe:
 SCHEDULED: <2026-08-08 Sat>
+CLOSED: [2026-08-09 Sun]
 Untested. On a cgroup-v1 host (e.g. the RHEL 8.10 work host, once
 =--privileged= is confirmed permitted), verify systemd boots and all three
 services come up via the v1 overlay, using =verify.sh= with the =-cgv1=
 container name and privileged ports.
 ----- AI Results: ------
+*deb13 privileged sysd on RHEL 8.10 (cgroup v1): VERIFIED.* All 11 checks
+pass: container running, systemd is PID 1, system state =running= (not
+degraded), all three services active (vncserver/novnc/sshd-container),
+journald boot log present, host ports 2224/5903/6903 listening, noVNC HTTP
+responds.
+
+One extra step required: the host had exhausted Docker's default bridge pool
+(172.17--172.31 and 192.168.0/16 all allocated across 30+ existing networks).
+Fixed by adding an explicit =networks:= block with =subnet: 10.254.13.0/24=
+to =docker-compose.cgv1.yml=. This subnet is clear on this host; adjust if
+needed on other hosts (inspect with =docker network inspect $(docker network
+ls -q --filter driver=bridge) --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}'=).
+
+The cgroup-v1 privileged overlay is now end-to-end confirmed on a production
+RHEL 8.10 host. The classic recipe works: =--privileged=, =/sys/fs/cgroup:ro=
++ =/sys/fs/cgroup/systemd:rw=, no =cgroup: host=.
 
 ** DONE [#B] Fix confined build.bash tags; document local-only + separate stores :aiAndMe:
 SCHEDULED: <2026-08-08 Sat>

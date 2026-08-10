@@ -18,9 +18,13 @@ services:
        - ../../../../confined/vnc/xfce/bisos_deb13-fresh/raw-bisos:/home/bystar/raw-bisos
        - /sys/fs/cgroup:/sys/fs/cgroup:rw
        - /sys/fs/fuse:/sys/fs/fuse
+       # /tmp as exec tmpfs to match Debian default (Docker shorthand applies noexec).
+       - type: tmpfs
+         target: /tmp
+         tmpfs:
+           mode: 01777
 
     tmpfs:
-      - /tmp
       - /run
       - /run/lock
       - /var/log/journal

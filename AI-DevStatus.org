@@ -26,27 +26,20 @@ Fill in the sections below when asked to update, following the structure provide
 
 * Current State
 
-As of 2026-08-09. Stages 1--4 authored; Stage 3 (rootless-sysd) and Stage 4
-(cgroup-v1 overlay) added, and the rootless-sysd bring-up completed on a
-prior Debian cgroup-v2 host.
+As of 2026-08-09. All Stage 1--4 TODOs now complete.
 
 The repo has a three-peer image hierarchy along an *init/isolation profile*
 axis: =confined= (docker, unprivileged, no systemd), =privileged= (docker,
 =--privileged=, systemd PID 1), and =rootless-sysd= (podman, rootless, systemd
 PID 1). Six image specifications across two Debian releases and three profiles.
-README.org describes the current state including a host cgroup v1/v2
-compatibility matrix and a Debian-12-vs-13 host section.
 
-Verified (prior session, Debian cgroup-v2 host): *deb13 privileged sysd* and
-*deb13 rootless-sysd* --- both boot systemd as PID 1, all three services
-active, reachable via SSH/VNC/noVNC, verify.sh all PASS.
-
-*Current host: RHEL 8.10 (cgroup v1, cannot reboot).* Context confirmed via
-=/bx-confirm0=. Host OS confirmed =Red Hat Enterprise Linux 8.10 (Ootpa)=.
-Next task: verify the cgroup-v1 privileged overlay (Stage 4 open TODO).
+Verified end-to-end:
+- *deb13 privileged sysd on cgroup v2* (prior session, Debian host) — PASS
+- *deb13 rootless-sysd on cgroup v2* (prior session, Debian host) — PASS
+- *deb13 privileged sysd on cgroup v1* (this session, RHEL 8.10) — PASS
 
 Still untested: deb12 variants (high confidence same patterns); Quadlet
-per-engineer path; cgroup-v1 privileged overlay (the immediate next task here).
+per-engineer path; confined images after rename.
 
 * Continuation: Current Session on RHEL 8.10
 
@@ -160,28 +153,28 @@ is unavailable there; use the privileged v1 overlay (if =--privileged= permitted
 
 * What Works
 
-- *deb13 privileged sysd: built, run and VERIFIED* on a cgroup v2 Debian host.
+- *deb13 privileged sysd on cgroup v2 (Debian host): VERIFIED* — prior session.
   systemd is PID 1, all three services active, reachable via SSH and VNC,
-  =verify.sh= all green. This is the first end-to-end confirmation of the
-  systemd-in-container design.
+  =verify.sh= all green.
+- *deb13 privileged sysd on cgroup v1 (RHEL 8.10): VERIFIED* — this session.
+  All 11 verify.sh checks pass: systemd PID 1, system state =running=, all
+  three services active, ports 2224/5903/6903 listening, noVNC HTTP responds.
+  Note: host had exhausted Docker's default bridge pool; fixed by adding
+  =networks:= block with explicit =subnet: 10.254.13.0/24= to
+  =docker-compose.cgv1.yml=.
+- *deb13 rootless-sysd: VERIFIED* — prior session on Debian cgroup-v2 host.
 - Confined deb12 and deb13 images: Dockerfile, compose, build.bash, all
-  dockerConf files are complete and consistent with the upstream working base.
+  dockerConf files complete and consistent.
 - Directory hierarchy: three-peer profile axis, clean, all path references updated.
 - README.org and this file: updated for the three-peer model + cgroup matrix.
-- Privileged image files (both), rootless-sysd (both), cgroup-v1 overlay:
-  authored and structurally complete.
 
 * What Is Untested
 
-- deb12 privileged sysd: not built/run (deb13 verified; deb12 is the same
-  pattern, high confidence but unconfirmed).
-- rootless-sysd (deb12 and deb13): Podman is not installed on the current
-  host. Needs a rootless Podman + crun + cgroup v2 (with delegation) host to
-  verify build.bash, run.bash, verify.sh (incl. the rootless assertion), and
-  the Quadlet unit under =systemctl --user=.
-- cgroup-v1 privileged overlay (=docker-compose.cgv1.yml=): no cgroup v1 host
-  available. Needs verification on a v1 host (e.g. RHEL 8.10) that systemd
-  boots and services come up, once =--privileged= is confirmed permitted.
+- deb12 privileged sysd: not built/run on either cgroup v1 or v2 (deb13
+  verified on both; deb12 is the same pattern, high confidence but unconfirmed).
+- rootless-sysd (deb12 and deb13): needs a rootless Podman + crun + cgroup v2
+  host to verify build.bash, run.bash, verify.sh (incl. the rootless assertion),
+  and the Quadlet unit under =systemctl --user=.
 - Confined images: not re-tested after the =desktop= → =confined/vnc= rename,
   though the Dockerfile and scripts are unchanged.
 

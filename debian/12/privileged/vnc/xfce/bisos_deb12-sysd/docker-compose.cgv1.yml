@@ -20,6 +20,9 @@
 #
 #     docker compose -f docker-compose.cgv1.yml up -d
 #     ./verify.sh mb-deb12-sysd-xfce-cgv1 2223 5902 6902
+#
+# Note: if Docker's default bridge pool is exhausted on the host, add an
+# explicit networks: block (see the deb13 cgv1 file for an example).
 
 services:
 
@@ -41,9 +44,13 @@ services:
        - ../../../../confined/vnc/xfce/bisos_deb12-fresh/raw-bisos:/home/bystar/raw-bisos
        - /sys/fs/cgroup:/sys/fs/cgroup:ro
        - /sys/fs/cgroup/systemd:/sys/fs/cgroup/systemd:rw
+       # /tmp as exec tmpfs to match Debian default (Docker shorthand applies noexec).
+       - type: tmpfs
+         target: /tmp
+         tmpfs:
+           mode: 01777
 
     tmpfs:
-      - /tmp
       - /run
       - /run/lock
 

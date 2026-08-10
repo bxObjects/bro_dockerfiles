@@ -20,6 +20,12 @@
 #
 #     docker compose -f docker-compose.cgv1.yml up -d
 #     ./verify.sh mb-deb13-sysd-xfce-cgv1 2224 5903 6903
+#
+# Note: if Docker's default bridge pool is exhausted on the host, the explicit
+# subnet below avoids the "all predefined address pools have been fully
+# subnetted" error. Adjust if 10.254.13.0/24 overlaps something on your host
+# (inspect with: docker network inspect $(docker network ls -q --filter
+# driver=bridge) --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}').
 
 services:
 
@@ -41,9 +47,13 @@ services:
        - ../../../../confined/vnc/xfce/bisos_deb13-fresh/raw-bisos:/home/bystar/raw-bisos
        - /sys/fs/cgroup:/sys/fs/cgroup:ro
        - /sys/fs/cgroup/systemd:/sys/fs/cgroup/systemd:rw
+       # /tmp as exec tmpfs to match Debian default (Docker shorthand applies noexec).
+       - type: tmpfs
+         target: /tmp
+         tmpfs:
+           mode: 01777
 
     tmpfs:
-      - /tmp
       - /run
       - /run/lock
 
