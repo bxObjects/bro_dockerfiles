@@ -1,4 +1,4 @@
-#+TITLE: bro_dockerfiles --- BISOS Docker Image Specifications
+#+TITLE: bro_dockerfiles --- BISOS Docker Image Specifications (companion to =bisos.dockerProc=)
 #+DATE: <2026-08-07 Thu>
 #+AUTHOR: Mohsen BANAN
 #+OPTIONS: toc:4
@@ -27,6 +27,18 @@ The three peers are named by property, not by tool. See
 
 Each variant targets Debian 12 (Bookworm) and Debian 13 (Trixie).
 All images provide an XFCE4 desktop accessible via TigerVNC and noVNC.
+
+*Joint design with* [[https://github.com/bisos-pip/dockerProc][=bisos.dockerProc=]] *.*
+This repo and the =bisos.dockerProc= pip package are *jointly designed* and
+meant to be used together. =bisos.dockerProc= provides the framework
+(planted =.spcs= files, path-derived parameters, seed CS commands);
+=bro_dockerfiles= provides the image specifications (Dockerfiles, systemd
+units, per-leaf assets) that the framework operates on. The two repos
+evolve together. Today the bash scripts (=build.bash=, =verify.sh=,
+=run.bash=) still work as a standalone alternative; a future release will
+make =.spcs= the only path. The
+[[#repo-structure-at-a-glance][Repo Structure at a Glance]] figure below
+shows both parts of the pair.
 
 * Repo Structure at a Glance
 
@@ -71,10 +83,14 @@ first, then the figure.
   from the leaf's directory path via =bisos.dockerProc=. The bash path
   is dashed because it will be retired in a future release once the
   =.spcs= path has full parity.
-- *=bisos.dockerProc= (bottom-right).* The external pip package. It
-  plants =dockerProc.spcs= into confined + privileged leaves and
-  =podmanProc.spcs= into rootless-sysd leaves. Once planted, each
-  =.spcs= file is invoked directly from its leaf directory.
+- *=bisos.dockerProc= (bottom-right).* The *companion* pip package
+  --- the framework side of this pair. =bro_dockerfiles= provides the
+  image specifications; =bisos.dockerProc= provides the machinery that
+  builds, runs, and verifies them. It plants =dockerProc.spcs= into
+  confined + privileged leaves and =podmanProc.spcs= into
+  rootless-sysd leaves. Once planted, each =.spcs= file is invoked
+  directly from its leaf directory. Sources:
+  [[https://github.com/bisos-pip/dockerProc]].
 
 * Table of Contents     :TOC:
 - [[#scope-of-this-repo][Scope of This Repo]]
@@ -526,7 +542,7 @@ ownership of =/shuttle/this=.
 
 * Related Resources
 
+- =bisos.dockerProc= (companion pip package): https://github.com/bisos-pip/dockerProc
 - BISOS Bootstrap: https://github.com/bxGenesis/start
-- bisos.dockerProc package: =/bisos/git/auth/bxRepos/bisos-pip/dockerProc=
 - TigerVNC: https://tigervnc.org
 - noVNC: https://novnc.com
