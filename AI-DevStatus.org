@@ -24,8 +24,16 @@ This file is maintained by Claude. Updates are typically triggered by the
 * Current State
 
 As of 2026-08-10. All Stage 1--4 TODOs complete. Two post-Stage-4 fixes applied
-this session: =bystar= home directory permissions (700→755) and =/tmp= noexec
-removed via a =tmp-exec.service= systemd oneshot. Both verified on RHEL 8.10.
+and verified: =bystar= home directory permissions (700→755) and =/tmp= noexec
+removed via a =tmp-exec.service= systemd oneshot. Both confirmed on RHEL 8.10
+(cgroup v1) and on Debian hosts. README.org updated to reflect both fixes.
+
+Stage 5 planting is complete. =dockerProc.spcs= is planted in all four docker
+leaves (deb12/13 × confined/privileged) and =podmanProc.spcs= in both rootless-sysd
+leaves. All six paths derive correct parameters from their directory location via
+=bisos.dockerProc.containerProc_seedInfo.paramsFromPlantPath()=. The per-leaf bash
+scripts (=build.bash=, =verify.sh=, =run.bash=, =docker-compose.yml=) remain in place
+pending live end-to-end verification of the spcs commands against a running container.
 
 The repo has a three-peer image hierarchy along an *init/isolation profile*
 axis: =confined= (docker, unprivileged, no systemd), =privileged= (docker,
@@ -36,6 +44,7 @@ Verified end-to-end:
 - *deb13 privileged sysd on cgroup v2* (prior session, Debian host) — PASS
 - *deb13 rootless-sysd on cgroup v2* (prior session, Debian host) — PASS
 - *deb13 privileged sysd on cgroup v1* (RHEL 8.10, this session) — PASS (11/11)
+- *bystar home 755 + /tmp exec* confirmed in running deb13 privileged container
 
 Still untested: deb12 variants (same pattern, high confidence); rootless-sysd
 deb12; Quadlet per-engineer path; confined images after rename.
@@ -54,6 +63,13 @@ debian/
     rootless-sysd/vnc/xfce/    rootless podman, systemd PID 1 (cgroup v2)
       bisos_deb12-rootless-sysd/ (or bisos_deb13-rootless-sysd/)
 #+END_SRC
+
+The path structure is not cosmetic --- it is the *configuration substrate* for
+the Stage 5 spcs framework. Each path segment encodes a parameter:
+=debian/<release>/<profile>/vnc/xfce/<imageName>/= → distro, release, profile
+(→ engine/privilege/init), desktop type, image name. The =dockerProc= seed will
+parse =plantOfThisSeed= to derive the full operating context with no per-leaf
+parameter files.
 
 ** Confined images (=bisos_deb{12,13}-fresh=)
 
@@ -109,6 +125,30 @@ debian/
 Check with: =stat -fc %T /sys/fs/cgroup= (=cgroup2fs= = v2; =tmpfs= = v1/hybrid).
 RHEL 8 defaults to v1; flip via =grubby ... systemd.unified_cgroup_hierarchy=1= + reboot.
 
+** Stage 5: containerProc spcs framework
+
+The per-leaf bash scripts are pre-framework scaffolding. The replacement:
+
+- Docker leaves plant =dockerProc.spcs=; rootless-sysd leaves plant =podmanProc.spcs=
+- Both delegate to =containerProc-seed.cs= in =bisos.dockerProc=
+- The seed parses =plantOfThisSeed= path to derive all operating parameters —
+  no per-leaf configuration files needed
+- Leaf directories will contain only =Dockerfile=, =dockerConf/= assets, and the
+  thin =.spcs= file
+
+Path-to-parameter mapping:
+
+| Path segment  | Parameter derived                                                      |
+|---------------+------------------------------------------------------------------------|
+| =debian=      | distro                                                                 |
+| =<release>=   | 12 or 13 → base OS, base image tag                                    |
+| =<profile>=   | =confined= / =privileged= / =rootless-sysd= → engine, init, privilege |
+| =vnc/xfce=    | desktop type → VNC/noVNC ports, xstartup variant                      |
+| =<imageName>= | image name → DockerHub name, container name                           |
+
+Implementation is tracked in =bisos.dockerProc= Stage 1:
+=/bisos/git/auth/bxRepos/bisos-pip/dockerProc/AI-WorkPlan.org=
+
 ** Key files per image
 
 | File                                | Purpose                                      |
@@ -125,7 +165,7 @@ RHEL 8 defaults to v1; flip via =grubby ... systemd.unified_cgroup_hierarchy=1= 
 | =dockerConf/vncserver.service=      | (sysd) systemd unit for TigerVNC             |
 | =dockerConf/novnc.service=          | (sysd) systemd unit for noVNC                |
 | =dockerConf/sshd-container.service= | (sysd) systemd unit for sshd                 |
-| =dockerConf/tmp-exec.service=       | (sysd) oneshot: remount /tmp exec            |
+| =dockerConf/tmp-exec.service=       | (privileged) oneshot: remount /tmp exec      |
 | =raw-bisos/installRawBisos.sh=      | (confined) Bootstraps Raw-BISOS in container |
 
 * What Works
@@ -137,6 +177,7 @@ RHEL 8 defaults to v1; flip via =grubby ... systemd.unified_cgroup_hierarchy=1= 
 - *deb13 rootless-sysd on cgroup v2: VERIFIED* — prior session on Debian host.
 - Confined deb12 and deb13 images: complete and consistent.
 - Directory hierarchy: three-peer profile axis, all path references correct.
+- Stage 5 framework: fully designed and documented in AI-WorkPlan.org.
 
 * What Is Untested
 
@@ -146,6 +187,9 @@ RHEL 8 defaults to v1; flip via =grubby ... systemd.unified_cgroup_hierarchy=1= 
 - rootless-sysd deb13 Quadlet path: =systemctl --user= + linger not exercised.
 - Confined images: not re-tested after the =desktop= → =confined/vnc= rename,
   though Dockerfile and scripts are unchanged.
+- Stage 5 spcs live commands: =dockerProc.spcs= planted and path-verified in all six leaves;
+  actual =build= / =verify= against a running container not yet exercised end-to-end.
+  Per-leaf bash scripts remain until live verification passes.
 
 * Key Design Decisions
 
@@ -199,6 +243,13 @@ RHEL 8 defaults to v1; flip via =grubby ... systemd.unified_cgroup_hierarchy=1= 
 
 - *Debian 12 vs 13 host (rootless-sysd)* — Podman 4.3.1 (Debian 12) needs chroot
   isolation + exec-free verify. Podman 5.4.2 (Debian 13) fixes both.
+
+- *Directory path as configuration (Stage 5)* — the =debian/<release>/<profile>/vnc/xfce/<imageName>/=
+  hierarchy encodes all operating parameters. =dockerProc.spcs= (docker leaves) and
+  =podmanProc.spcs= (rootless-sysd leaves) both delegate to =containerProc-seed.cs=,
+  which parses =plantOfThisSeed= to derive engine, privilege level, ports, base image, etc.
+  No per-leaf parameter files needed. Consistent with the BISOS spcs pattern
+  (=pypiProc.sh=, =djangoProc.spcs=). Implemented in =bisos.dockerProc=.
 
 # Local Variables:
 # eval: (setq-local toc-org-max-depth 4)

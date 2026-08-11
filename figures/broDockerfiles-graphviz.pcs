@@ -1,0 +1,237 @@
+#!/usr/bin/env python
+
+####+BEGIN: b:prog:file/particulars :authors ("./inserts/authors-mb.org")
+""" #+begin_org
+* *[[elisp:(org-cycle)][| Particulars |]]* :: Authors, version
+** This File: /bisos/git/bxRepos/bxObjects/bro_dockerfiles/figures/broDockerfiles-graphviz.pcs
+** Authors: Mohsen BANAN, http://mohsen.banan.1.byname.net/contact
+#+end_org """
+####+END:
+
+""" #+begin_org
+* Overview
+Repo-structure figure for bro_dockerfiles.
+
+2 x 3 grid of container image leaves:
+  rows    = Debian release (12, 13)
+  columns = init/isolation profile (confined, privileged, rootless-sysd)
+
+Vertical arrows within each row show FROM inheritance:
+  <release>-fresh (confined) → <release>-sysd (privileged) → <release>-rootless-sysd
+
+External base images (debian:12.12, debian:13.1) sit above the confined column.
+
+Below the grid, two build/verify paths are shown as destination boxes:
+  1. Bash path (legacy, dashed border) --- build.bash / verify.sh / docker-compose / run.bash
+  2. .spcs path (current) --- dockerProc.spcs / podmanProc.spcs delegating to bisos.dockerProc
+
+bisos.dockerProc (external package) is shown on the right, planting the
+.spcs files into every leaf.
+#+end_org """
+
+from bisos import b
+from bisos.b import cs
+
+import graphviz
+
+from bisos.graphviz import graphvizSeed
+ng = graphvizSeed.namedGraph
+
+
+####+BEGIN: b:py3:cs:orgItem/basic :type "=Seed Setup= " :title "*Common Facilities*" :comment "General"
+""" #+begin_org
+*  _[[elisp:(blee:menu-sel:outline:popupMenu)][±]]_ _[[elisp:(blee:menu-sel:navigation:popupMenu)][Ξ]]_ [[elisp:(outline-show-branches+toggle)][|=]] [[elisp:(bx:orgm:indirectBufOther)][|>]] *[[elisp:(blee:ppmm:org-mode-toggle)][|N]]*  =Seed Setup=  [[elisp:(outline-show-subtree+toggle)][||]] *Common Facilities* General  [[elisp:(org-cycle)][| ]]
+#+end_org """
+####+END:
+
+namedGraphsList = [
+    # Forward reference: repoStructureAtAGlance is defined below this block.
+    ng("repoStructureAtAGlance",
+       func=lambda: repoStructureAtAGlance(),
+       title="bro_dockerfiles Repo Structure at a Glance",
+       caption="2 x 3 grid of container image leaves: rows are Debian "
+               "release (12, 13); columns are init/isolation profile "
+               "(confined, privileged, rootless-sysd). Vertical arrows "
+               "within each row show FROM inheritance. Two build/verify "
+               "paths are available for every leaf --- the legacy bash "
+               "path (dashed border) and the current .spcs path driven "
+               "by bisos.dockerProc, which plants dockerProc.spcs into "
+               "docker leaves and podmanProc.spcs into rootless-sysd "
+               "leaves."),
+]
+
+graphvizSeed.setup(
+    seedType="common",
+    namedGraphsList=namedGraphsList,
+)
+
+####+BEGIN: b:py3:cs:func/typing :funcName "repoStructureAtAGlance" :funcType "Typed" :deco "track"
+""" #+begin_org
+*  _[[elisp:(blee:menu-sel:outline:popupMenu)][±]]_ _[[elisp:(blee:menu-sel:navigation:popupMenu)][Ξ]]_ [[elisp:(outline-show-branches+toggle)][|=]] [[elisp:(bx:orgm:indirectBufOther)][|>]] *[[elisp:(blee:ppmm:org-mode-toggle)][|N]]*  F-T-Typed  [[elisp:(outline-show-subtree+toggle)][||]] /repoStructureAtAGlance/  deco=track  [[elisp:(org-cycle)][| ]]
+#+end_org """
+@cs.track(fnLoc=True, fnEntry=True, fnExit=True)
+def repoStructureAtAGlance(
+####+END:
+) -> graphviz.Digraph:
+    """ #+begin_org
+** [[elisp:(org-cycle)][| *DocStr | ]  TB grid: 2 rows (Debian 12/13) x 3 cols (confined/privileged/rootless-sysd)
+    with FROM edges within each row, external base images on top, and the two
+    build paths + bisos.dockerProc external package below.
+    #+end_org """
+
+    d = graphviz.Digraph()
+    d.attr(rankdir='TB')
+    d.attr(compound='true')
+    d.attr(nodesep='0.6')
+    d.attr(ranksep='0.7')
+
+    # Colour convention (documented in README, not on figure):
+    #   thistle         = external input / actor (debian base, bisos.dockerProc)
+    #   lightsteelblue  = confined leaves
+    #   mistyrose       = privileged leaves
+    #   khaki1          = rootless-sysd leaves (differentiate from privileged)
+    #   lightyellow     = bash path box (dashed border = legacy)
+    #   darkseagreen3   = .spcs path box (current / primary)
+    #   solid FROM edge = image inheritance
+    #   dotted edge     = ".spcs planted here" (from bisos.dockerProc to leaves)
+    #   dashed edge     = "operates on" (path box to leaves)
+
+    # ==================================================================
+    # Row 0: External Debian base images
+    # ==================================================================
+    with d.subgraph() as s:
+        s.attr(rank='same')
+        s.node('base_deb12',
+               'debian:12.12\n(external)',
+               shape='cylinder', style='filled', fillcolor='thistle')
+        s.node('base_deb13',
+               'debian:13.1\n(external)',
+               shape='cylinder', style='filled', fillcolor='thistle')
+
+    # ==================================================================
+    # Row 1: Debian 12 leaves (confined, privileged, rootless-sysd)
+    # Column order enforced by invisible edges within the rank=same subgraph.
+    # ==================================================================
+    with d.subgraph() as s:
+        s.attr(rank='same')
+        s.node('deb12_confined',
+               'deb12/confined/\nbisos_deb12-fresh\nssh:2222 vnc:5901',
+               shape='box3d', style='filled', fillcolor='lightsteelblue')
+        s.node('deb12_privileged',
+               'deb12/privileged/\nbisos_deb12-sysd\nssh:2223 vnc:5902',
+               shape='box3d', style='filled', fillcolor='mistyrose')
+        s.node('deb12_rootless',
+               'deb12/rootless-sysd/\nbisos_deb12-rootless-sysd\nssh:2225 vnc:5904',
+               shape='box3d', style='filled', fillcolor='khaki1')
+        # Invisible column-order edges (drawn as FROM-labeled visible edges below)
+        s.edge('deb12_confined', 'deb12_privileged', style='invis')
+        s.edge('deb12_privileged', 'deb12_rootless', style='invis')
+
+    # ==================================================================
+    # Row 2: Debian 13 leaves (confined, privileged, rootless-sysd)
+    # ==================================================================
+    with d.subgraph() as s:
+        s.attr(rank='same')
+        s.node('deb13_confined',
+               'deb13/confined/\nbisos_deb13-fresh\nssh:2222 vnc:5901',
+               shape='box3d', style='filled', fillcolor='lightsteelblue')
+        s.node('deb13_privileged',
+               'deb13/privileged/\nbisos_deb13-sysd\nssh:2224 vnc:5903',
+               shape='box3d', style='filled', fillcolor='mistyrose')
+        s.node('deb13_rootless',
+               'deb13/rootless-sysd/\nbisos_deb13-rootless-sysd\nssh:2226 vnc:5905',
+               shape='box3d', style='filled', fillcolor='khaki1')
+        s.edge('deb13_confined', 'deb13_privileged', style='invis')
+        s.edge('deb13_privileged', 'deb13_rootless', style='invis')
+
+    # ==================================================================
+    # FROM inheritance edges (base -> confined -> privileged & rootless-sysd)
+    # ==================================================================
+
+    # Base debian images -> confined leaves (vertical, rank-controlling)
+    d.edge('base_deb12', 'deb12_confined', label='FROM', fontsize='10')
+    d.edge('base_deb13', 'deb13_confined', label='FROM', fontsize='10')
+
+    # Within-row FROM edges: use visible-but-non-ranking edges. Route via
+    # 'privileged' as an intermediate so we get one arrow per hop and avoid
+    # long-jump routing failures.
+    d.edge('deb12_confined', 'deb12_privileged',
+           label='FROM', fontsize='10',
+           constraint='false', dir='forward')
+    d.edge('deb12_privileged', 'deb12_rootless',
+           label='(same FROM)', fontsize='9', fontcolor='gray40',
+           style='dotted', arrowhead='none',
+           constraint='false')
+
+    d.edge('deb13_confined', 'deb13_privileged',
+           label='FROM', fontsize='10',
+           constraint='false', dir='forward')
+    d.edge('deb13_privileged', 'deb13_rootless',
+           label='(same FROM)', fontsize='9', fontcolor='gray40',
+           style='dotted', arrowhead='none',
+           constraint='false')
+
+    # ==================================================================
+    # Row 3: The two build/verify paths
+    # ==================================================================
+    with d.subgraph() as s:
+        s.attr(rank='same')
+        s.node('path_bash',
+               'Bash Path (legacy)\n\nbuild.bash\nverify.sh\ndocker compose up\nrun.bash (rootless)\n\n(retires later)',
+               shape='rectangle',
+               style='dashed,filled',
+               fillcolor='lightyellow',
+               margin='0.25,0.2')
+        s.node('path_spcs',
+               '.spcs Path (current)\n\ndockerProc.spcs (docker)\npodmanProc.spcs (rootless)\n-i containerProc_build\n-i containerProc_verify\n-i containerProc_composeUp / run',
+               shape='rectangle',
+               style='filled',
+               fillcolor='darkseagreen3',
+               margin='0.25,0.2')
+        s.node('pkg_dockerproc',
+               'bisos.dockerProc\n(external pip package)\n\npipx install\nbisos.dockerProc',
+               shape='ellipse',
+               style='filled,bold',
+               fillcolor='thistle',
+               margin='0.2,0.15')
+
+    # ==================================================================
+    # Path -> leaves ("operates on") edges
+    # ==================================================================
+    # A single representative edge per path per row keeps the figure legible;
+    # the invariant is stated in the caption ("every leaf supports both paths").
+
+    d.edge('path_bash', 'deb12_confined',
+           style='dashed', arrowhead='vee',
+           label='operates on\nany leaf', fontsize='10',
+           color='gray50', fontcolor='gray50',
+           constraint='false')
+
+    d.edge('path_spcs', 'deb13_rootless',
+           style='dashed', arrowhead='vee',
+           label='operates on\nany leaf', fontsize='10',
+           color='gray50', fontcolor='gray50',
+           constraint='false')
+
+    # ==================================================================
+    # bisos.dockerProc -> .spcs files ("plants") edge
+    # ==================================================================
+    d.edge('pkg_dockerproc', 'path_spcs',
+           style='dotted', arrowhead='vee',
+           label='plants\n.spcs files',
+           penwidth='1.4',
+           constraint='false')
+
+    return d
+
+""" #+begin_org
+* Iteration loop
+#+begin_src sh :results output :session shared
+broDockerfiles-graphviz.pcs --format=evince -i ngProcess repoStructureAtAGlance
+#+end_src
+
+* Commit render
+#+begin_src sh :results output :session shared
+broDockerfiles-graphviz.pcs --format=all -i ngProcess all
+#+end_src
+#+end_org """

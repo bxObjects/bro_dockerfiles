@@ -1,0 +1,16 @@
+#!/usr/bin/env python
+
+""" #+begin_org
+* ~[Summary]~ :: podmanProc Spread Planted CS — for rootless-sysd (podman) leaves.
+  Place this file unchanged in each rootless-sysd leaf directory:
+    debian/<release>/rootless-sysd/vnc/xfce/<imageName>/
+  All operating parameters are derived from this file's directory path.
+  Requires: rootless Podman + crun + cgroup v2 with controller delegation.
+#+end_org """
+
+from bisos.dockerProc import containerProc_seed  # noqa: F401  # type: ignore[unused-import] _atExit_
+
+# No explicit seedInfo.setup() needed — the path IS the configuration.
+
+def examples_pcs() -> None:
+    pass

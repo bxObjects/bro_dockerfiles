@@ -1,0 +1,16 @@
+#!/usr/bin/env python
+
+""" #+begin_org
+* ~[Summary]~ :: dockerProc Spread Planted CS — for docker leaves (confined and privileged profiles).
+  Place this file unchanged in each docker leaf directory:
+    debian/<release>/confined/vnc/xfce/<imageName>/
+    debian/<release>/privileged/vnc/xfce/<imageName>/
+  All operating parameters are derived from this file's directory path.
+#+end_org """
+
+from bisos.dockerProc import containerProc_seed  # noqa: F401  # type: ignore[unused-import] _atExit_
+
+# No explicit seedInfo.setup() needed — the path IS the configuration.
+
+def examples_pcs() -> None:
+    pass

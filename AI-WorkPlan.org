@@ -447,6 +447,48 @@ The remaining fixes from the deb13 bring-up, plus the Debian 12-vs-13 doc.
 ** -
 
 
+* Stage 5: containerProc spcs framework (implemented in bisos.dockerProc)
+
+Goal: Replace the per-leaf bash scripts with =dockerProc.spcs= / =podmanProc.spcs=
+planted in each leaf, backed by =containerProc-seed.cs= in =bisos.dockerProc=.
+
+Implementation is tracked in the =bisos.dockerProc= repo:
+=@/bisos/git/auth/bxRepos/bisos-pip/dockerProc/AI-WorkPlan.org=
+
+** What replaces what
+
+| Current per-leaf file       | Replaced by                                            |
+|-----------------------------+--------------------------------------------------------|
+| =build.bash=                | =dockerProc.spcs= / =podmanProc.spcs -i build=         |
+| =docker-compose.yml=        | =dockerProc.spcs -i composeUp= / =composeDown=         |
+| =docker-compose.cgv1.yml=   | =dockerProc.spcs -i composeUp --cgroupVer=v1=          |
+| =run.bash= (rootless-sysd)  | =podmanProc.spcs -i run=                               |
+| =verify.sh=                 | =dockerProc.spcs= / =podmanProc.spcs -i verify=        |
+
+=dockerConf/= assets (Dockerfiles, systemd units, entrypoint.sh, xstartup)
+remain in each leaf --- they are image-specific content, not logic.
+
+* Stage 5 TODOs
+** +
+** DONE [#B] Plant dockerProc.spcs / podmanProc.spcs in all six leaf directories :aiAndMe:
+SCHEDULED: <2026-08-10 Sun>
+CLOSED: [2026-08-10 Sun]
+Once =bisos.dockerProc= Stage 1 is complete, plant =dockerProc.spcs= in the
+four docker leaves and =podmanProc.spcs= in the two rootless-sysd leaves.
+Verify each resolves its seed and derives correct parameters for that leaf.
+----- AI Results: ------
+=dockerProc.spcs= planted in 4 docker leaves (deb12/13 × confined/privileged).
+=podmanProc.spcs= planted in 2 rootless-sysd leaves (deb12/13). All 6/6 path
+derivations verified programmatically — correct profile, engine, ports, imageName.
+** TODO [#B] Retire per-leaf bash scripts once spcs is verified :aiAndMe:
+SCHEDULED: <2026-08-10 Sun>
+Remove =build.bash=, =verify.sh=, =run.bash=, =docker-compose.yml=,
+=docker-compose.cgv1.yml= from each leaf once the spcs equivalents are
+verified end-to-end. Update README.org and AI-DevStatus.org.
+----- AI Results: ------
+** -
+
+
 # Local Variables:
 # eval: (setq-local toc-org-max-depth 4)
 # eval: (setq-local org-log-done 'time)

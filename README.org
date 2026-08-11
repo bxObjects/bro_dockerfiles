@@ -28,8 +28,57 @@ The three peers are named by property, not by tool. See
 Each variant targets Debian 12 (Bookworm) and Debian 13 (Trixie).
 All images provide an XFCE4 desktop accessible via TigerVNC and noVNC.
 
+* Repo Structure at a Glance
+
+The figure below is a compact summary of everything in this repo: six
+container image leaves arranged as a 2 x 3 grid, their =FROM= inheritance,
+and the two build/verify paths available for each leaf. Scan the legend
+first, then the figure.
+
+*Legend:*
+
+| Element                            | Meaning                                                                    |
+|------------------------------------+----------------------------------------------------------------------------|
+| Thistle cylinder (top)             | External Debian base image pulled from Docker Hub.                         |
+| Light-blue leaf (=box3d=)          | *confined* profile leaf --- unprivileged docker, no systemd.               |
+| Pink leaf (=box3d=)                | *privileged* profile leaf --- docker with =--privileged= + systemd PID 1.  |
+| Khaki leaf (=box3d=)               | *rootless-sysd* profile leaf --- rootless podman + systemd PID 1.          |
+| =FROM= arrow                       | Image inheritance. Confined images inherit from Debian; sysd variants inherit from confined. |
+| =(same FROM)= dotted connector     | Privileged and rootless-sysd of the same release share their =FROM= base.  |
+| Yellow rectangle (dashed border)   | *Bash path (legacy)* --- =build.bash= / =verify.sh= / =docker compose= / =run.bash=. Retires later. |
+| Green rectangle                    | *=.spcs= path (current)* --- =dockerProc.spcs= / =podmanProc.spcs= via =bisos.dockerProc=.  |
+| Thistle ellipse (right)            | =bisos.dockerProc= --- external pip package that provides the =.spcs= files. |
+| Dotted "plants" arrow              | =bisos.dockerProc= plants =.spcs= files into every leaf.                   |
+| Gray dashed "operates on" arrow    | Each path operates on *any* leaf (single edge drawn for legibility).       |
+
+[[file:figures/repoStructureAtAGlance.png]]
+
+*Reading the figure, top to bottom:*
+
+- *External Debian base images (top).* =debian:12.12= and =debian:13.1= are
+  pulled from Docker Hub. Each feeds one *confined* leaf.
+- *2 x 3 grid of leaves.* Rows are Debian release (12, 13); columns are
+  init/isolation profile (confined, privileged, rootless-sysd). Within
+  each row, the privileged and rootless-sysd leaves both =FROM= the same
+  confined image --- so *building the confined image first* is the
+  prerequisite for the two sysd variants.
+- *Two build/verify paths (bottom-left).* Every leaf supports two ways
+  of being built, verified, and run. The bash path (=build.bash=,
+  =verify.sh=, =docker compose=, =run.bash=) works standalone --- no
+  =bisos.dockerProc= install required, keeps the repo usable on its
+  own. The =.spcs= path (=dockerProc.spcs= for docker leaves,
+  =podmanProc.spcs= for rootless-sysd leaves) derives all parameters
+  from the leaf's directory path via =bisos.dockerProc=. The bash path
+  is dashed because it will be retired in a future release once the
+  =.spcs= path has full parity.
+- *=bisos.dockerProc= (bottom-right).* The external pip package. It
+  plants =dockerProc.spcs= into confined + privileged leaves and
+  =podmanProc.spcs= into rootless-sysd leaves. Once planted, each
+  =.spcs= file is invoked directly from its leaf directory.
+
 * Table of Contents     :TOC:
 - [[#scope-of-this-repo][Scope of This Repo]]
+- [[#repo-structure-at-a-glance][Repo Structure at a Glance]]
 - [[#structure-of-this-repo][Structure of This Repo]]
 - [[#images][Images]]
   - [[#confined][Confined]]
@@ -39,9 +88,11 @@ All images provide an XFCE4 desktop accessible via TigerVNC and noVNC.
 - [[#host-os--podman-version-for-rootless-sysd-debian-12-vs-13][Host OS / Podman Version for rootless-sysd (Debian 12 vs 13)]]
 - [[#feature-parity-privileged-vs-rootless-sysd][Feature Parity: privileged vs rootless-sysd]]
 - [[#building][Building]]
-  - [[#confined-build-first][Confined (build first):]]
-  - [[#privileged-requires-confined-image-available-locally-or-on-dockerhub][Privileged (requires confined image available locally or on DockerHub):]]
-  - [[#rootless-sysd-podman-requires-confined-image-available][Rootless-sysd (Podman; requires confined image available):]]
+  - [[#two-build-paths-bash-and-bisosdockerproc][Two Build Paths (bash and =bisos.dockerProc=)]]
+  - [[#local-only-workflow][Local-only Workflow]]
+  - [[#running-inside-a-container-is-refused][Running Inside a Container Is Refused]]
+  - [[#bash-path-per-profile-build-steps][Bash Path: Per-Profile Build Steps]]
+  - [[#spcs-path-same-result-via-bisosdockerproc][=.spcs= Path: Same Result via =bisos.dockerProc=]]
 - [[#running][Running]]
   - [[#port-assignments-host-ports][Port assignments (host ports):]]
 - [[#connecting-to-a-container][Connecting to a Container]]
@@ -96,9 +147,13 @@ Each image directory contains:
 
 | File/Dir                          | Purpose                                              |
 |-----------------------------------+------------------------------------------------------|
+| File/Dir                            | Purpose                                              |
+|-------------------------------------+------------------------------------------------------|
 | =Dockerfile=                        | Image definition                                     |
 | =docker-compose.yml=                | Convenience compose file for local use               |
 | =build.bash=                        | Build and push multi-arch images to DockerHub        |
+| =dockerProc.spcs=                   | (docker leaves) Planted Spread CS from =bisos.dockerProc=; drives build/run/verify from this dir |
+| =podmanProc.spcs=                   | (rootless-sysd) Planted Spread CS; podman equivalent of =dockerProc.spcs= |
 | =dockerConf/entrypoint.sh=          | (confined only) Starts VNC, noVNC, sshd directly     |
 | =dockerConf/xstartup=               | (confined only) VNC xstartup launching XFCE4         |
 | =dockerConf/panel.sh=               | (confined only) XFCE4 panel launcher config (NOTYET) |
@@ -107,6 +162,7 @@ Each image directory contains:
 | =dockerConf/vncserver.service=      | (sysd) systemd unit for TigerVNC                     |
 | =dockerConf/novnc.service=          | (sysd) systemd unit for noVNC                        |
 | =dockerConf/sshd-container.service= | (sysd) systemd unit for sshd                         |
+| =dockerConf/tmp-exec.service=       | (privileged) oneshot: remount =/tmp= exec at boot      |
 | =docker-compose.cgv1.yml=           | (privileged only) cgroup-v1 host overlay             |
 | =run.bash=                          | (rootless-sysd) =podman run= launcher                  |
 | =*.container=                       | (rootless-sysd) Podman Quadlet unit (per-engineer)   |
@@ -119,6 +175,10 @@ Each image directory contains:
 
 No systemd. Services started by =entrypoint.sh=, container stays alive via
 =sleep infinity=. Can run on any Docker host without special privileges.
+
+The =bystar= user is created with home directory mode *755* (overriding the
+=useradd= default of 700 from =/etc/login.defs=). The privileged and
+rootless-sysd images inherit this via their =FROM= base.
 
 | Image                      |  Tag | Debian | DockerHub name                  |
 |----------------------------+------+--------+---------------------------------|
@@ -140,6 +200,13 @@ The privileged images layer on top of the confined images — build confined fir
 
 On a cgroup-v1 host that cannot be moved to v2, use the =docker-compose.cgv1.yml=
 overlay instead of =docker-compose.yml= (see [[#host-compatibility-cgroup-v1-vs-v2][Host Compatibility]]).
+
+*Docker tmpfs and =/tmp=.* Docker's =tmpfs:= shorthand mounts =/tmp= with =noexec=
+by default --- unlike Debian's own =/tmp= which is exec. The privileged images
+include a =tmp-exec.service= systemd oneshot that runs =mount -o remount,exec /tmp=
+early at boot (after =local-fs.target=, before =sysinit.target=), restoring
+Debian's default behaviour. The confined images are not affected (their =/tmp= is
+on the container's overlayfs root, not a Docker tmpfs mount).
 
 ** Rootless-sysd
 
@@ -165,11 +232,10 @@ per-engineer* form (=systemctl --user start/enable= + =loginctl enable-linger=)
 for the multi-tenant "N engineers on one host" model --- it survives logout and
 starts at login/boot.
 
-Before building, verify host readiness with the host-scoped check shipped in
-the =bisos.dockerProc= package:
-=/bisos/git/auth/bxRepos/bisos-pip/dockerProc/py3/bin/hostPodmanVerify.sh=
-(prints GO/NO-GO). Note: rootless Podman needs a real user session --- log in
-as the user directly (not =su=), or crun's systemd cgroup manager fails with an
+Before building, verify host readiness with =podmanHostVerify.cs -i verify=
+(installed by =bisos.dockerProc=; prints GO/NO-GO with per-check PASS/WARN/FAIL).
+Note: rootless Podman needs a real user session --- log in as the user directly
+(not =su=), or crun's systemd cgroup manager fails with an
 =sd-bus ... Input/output error=.
 
 * Host Compatibility (cgroup v1 vs v2)
@@ -233,7 +299,8 @@ Requirements that apply on *both* (not Podman-version issues):
   guest (no seat/session) and would otherwise leave systemd =degraded=,
   regardless of host.
 
-Run =dockerProc/py3/bin/hostPodmanVerify.sh= to check these before building.
+Run =podmanHostVerify.cs -i verify= (from =bisos.dockerProc=) to check these
+before building.
 
 * Feature Parity: privileged vs rootless-sysd
 
@@ -275,10 +342,36 @@ something privileged on real hardware → only the privileged image can.
 
 * Building
 
-*Local-only workflow.* These images are meant to be built and used *locally*,
-not pushed to DockerHub. Always use =./build.bash -d= (local build); the bare
+** Two Build Paths (bash and =bisos.dockerProc=)
+
+Every leaf directory supports *two build/verify paths* that produce the same
+result. Which one you use is a workflow choice today; the =.spcs= path is
+scheduled to become the only path later.
+
+- *Bash path (legacy, standalone).* =./build.bash= to build, =./verify.sh= to
+  smoke-test, =docker compose up -d= / =./run.bash= to run. Works without
+  =bisos.dockerProc= installed. Keeps =bro_dockerfiles= usable as a
+  standalone repo.
+
+- *=.spcs= path (current, framework-driven).* =./dockerProc.spcs -i
+  containerProc_build= (or =./podmanProc.spcs= for rootless-sysd leaves),
+  =-i containerProc_verify=, =-i containerProc_composeUp=, =-i
+  containerProc_run=. Requires =pipx install bisos.dockerProc=. Derives
+  engine, profile, ports, and base image from the leaf's directory path ---
+  no per-leaf configuration.
+
+The two paths coexist. Same Dockerfile, same layers, same running container
+--- the =.spcs= wrapper mostly just calls the same underlying =docker= /
+=podman= commands with the right arguments derived from the path. Later
+releases will retire the bash path once the =.spcs= path has full parity
+across all supported flows.
+
+** Local-only Workflow
+
+These images are meant to be built and used *locally*, not pushed to DockerHub.
+For the bash path, always use =./build.bash -d= (local build); the bare
 =./build.bash= (multi-arch buildx/manifest → DockerHub) path is not the
-intended flow here.
+intended flow here. The =.spcs= path is local-only by design.
 
 *Docker and Podman keep separate image stores.* The image format is identical
 (OCI), but the two engines do **not** share a local cache:
@@ -290,7 +383,18 @@ docker variants (confined, privileged) with docker; the rootless-sysd variant
 with podman. To move an already-built image between stores without a registry:
 =docker save <img> | podman load= (or the reverse).
 
-** Confined (build first):
+** Running Inside a Container Is Refused
+
+The =.spcs= path detects if it is running inside a container (via
+=/.dockerenv=, =/run/.containerenv=, and =/proc/1/cgroup= markers) and
+refuses with a clear error. This package assumes the Container Platform is
+a host, not itself a container --- nested containers are not a supported
+configuration. The bash path does not check, but nested docker/podman
+generally does not work without special host setup either.
+
+** Bash Path: Per-Profile Build Steps
+
+*** Confined (build first)
 
 #+BEGIN_SRC bash
 cd debian/12/confined/vnc/xfce/bisos_deb12-fresh
@@ -299,14 +403,14 @@ cd debian/12/confined/vnc/xfce/bisos_deb12-fresh
 #   podman build -t bisos/deb12-fresh-vnc-xfce:1.21 .
 #+END_SRC
 
-** Privileged (requires confined image available locally or on DockerHub):
+*** Privileged (requires confined image available locally or on DockerHub)
 
 #+BEGIN_SRC bash
 cd debian/12/privileged/vnc/xfce/bisos_deb12-sysd
 ./build.bash -d
 #+END_SRC
 
-** Rootless-sysd (Podman; requires confined image available):
+*** Rootless-sysd (Podman; requires confined image available)
 
 #+BEGIN_SRC bash
 cd debian/12/rootless-sysd/vnc/xfce/bisos_deb12-rootless-sysd
@@ -314,6 +418,41 @@ cd debian/12/rootless-sysd/vnc/xfce/bisos_deb12-rootless-sysd
 #+END_SRC
 
 Same pattern for Debian 13 under =debian/13/=.
+
+** =.spcs= Path: Same Result via =bisos.dockerProc=
+
+The =.spcs= file is already planted in every leaf. From any leaf, invoke
+it directly --- the leaf's path supplies engine, profile, and ports.
+
+*** Confined (build first)
+
+#+BEGIN_SRC bash
+cd debian/12/confined/vnc/xfce/bisos_deb12-fresh
+./dockerProc.spcs -i containerProc_build           # with layer cache
+./dockerProc.spcs -i containerProc_build --noCache="true"
+#+END_SRC
+
+*** Privileged
+
+#+BEGIN_SRC bash
+cd debian/12/privileged/vnc/xfce/bisos_deb12-sysd
+./dockerProc.spcs -i containerProc_build
+#+END_SRC
+
+*** Rootless-sysd
+
+#+BEGIN_SRC bash
+cd debian/12/rootless-sysd/vnc/xfce/bisos_deb12-rootless-sysd
+./podmanProc.spcs -i containerProc_build
+#+END_SRC
+
+Run =./dockerProc.spcs= or =./podmanProc.spcs= with no arguments in any leaf
+to see the full menu (=containerProc_composeUp=, =containerProc_run=,
+=containerProc_verify=, =containerProc_status=, =containerProc_clean=).
+
+For the full design and the multi-tenant registrar picture (design-only in
+this phase), see
+=/bisos/git/auth/bxRepos/bisos-pip/dockerProc/README.org=.
 
 * Running
 
