@@ -1,0 +1,36 @@
+dockerProc.spcs
+#######    *dockerProc.spcs*  --- Features:['direct', 'seeded']   ##########
+=======  /bisos/git/auth/bxRepos/bxObjects/bro_dockerfiles/debian/13/confined/vnc/xfce/bisos_deb13-fresh/dockerProc.spcs   ===========
+#######  /Command Service (CS) Brief Usage/  ##########
+dockerProc.spcs -i commonExamples    # Help, Model, icmOptionsExample
+dockerProc.spcs -i describe | emlVisit
+dockerProc.spcs -i examples | emlOutFilter.sh -i iimToEmlStdout  | emlVisit
+dockerProc.spcs -i visit
+emlVisit -v -n showRun -i gotoPanel ./dockerProc.spcs
+#######  =CSXU Player Examples=  ##########
+dockerProc.spcs -i inSchema  pdf-emacs
+dockerProc.spcs -i playerMenu
+#######  *containerProc — build, run, verify, compose, status, clean*  ##########
+=======  Build  ==========
+dockerProc.spcs -i containerProc_build           # build with layer cache
+dockerProc.spcs -i containerProc_build --noCache="true"           # --no-cache build
+=======  Docker compose (confined / privileged)  ==========
+dockerProc.spcs -i containerProc_composeUp           # cgroup v2 host
+dockerProc.spcs -i containerProc_composeUp --cgroupVer="v1"           # cgroup v1 host
+dockerProc.spcs -i containerProc_composeDown
+=======  Podman run (rootless-sysd)  ==========
+dockerProc.spcs -i containerProc_run --detach="true"           # detached
+=======  Verify  ==========
+dockerProc.spcs -i containerProc_verify
+=======  Status / Clean  ==========
+dockerProc.spcs -i containerProc_status
+dockerProc.spcs -i containerProc_clean
+HSS-1013-bystar# dockerProc.spcs -i containerProc_verify
+PASS: SSH port 2222 reachable
+PASS: VNC port 5901 reachable
+PASS: noVNC HTTP 6901 responds
+FAIL: ['Container bisos_deb13-fresh not running', "PID 1 is '', expected systemd", "systemd is-system-running=''", "Service vncserver@:1.service is-active=''", "Service novnc.service is-active=''", "Service sshd-container.service is-active=''"]
+['Container bisos_deb13-fresh not running', "PID 1 is '', expected systemd", "systemd is-system-running=''", "Service vncserver@:1.service is-active=''", "Service novnc.service is-active=''", "Service sshd-container.service is-active=''"]
+dockerProc.spcs.containerProc_verify Failed: Error=OpError.Failure -- None
+HSS-1013-bystar# pwd
+/bxRepos/bxObjects/bro_dockerfiles/debian/13/confined/vnc/xfce/bisos_deb13-fresh
