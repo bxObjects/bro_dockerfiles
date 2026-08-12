@@ -1,0 +1,34 @@
+podmanProc.spcs -i containerProc_run --detach="true"           # detached
+Running: podman run --systemd=always -d --name bisos_deb13-rootless-sysd -p 2226:22 -p 5905:5901 -p 6905:6901 bisos_deb13-rootless-sysd
+4facd45aa7aa2b79a6d2036ad5ce2707d4990b90f85b47cc7b48b5beabfdd7a0
+Started bisos_deb13-rootless-sysd
+HSS-1013-bystar# podmanProc.spcs -i containerProc_verify
+PASS: container bisos_deb13-rootless-sysd running
+PASS: SSH port 2226 reachable
+PASS: VNC port 5905 reachable
+PASS: noVNC HTTP 6905 responds
+FAIL: ["PID 1 is '', expected systemd", "systemd is-system-running=''", "Service vncserver@:1.service is-active=''", "Service novnc.service is-active=''", "Service sshd-container.service is-active=''"]
+["PID 1 is '', expected systemd", "systemd is-system-running=''", "Service vncserver@:1.service is-active=''", "Service novnc.service is-active=''", "Service sshd-container.service is-active=''"]
+podmanProc.spcs.containerProc_verify Failed: Error=OpError.Failure -- None
+HSS-1013-bystar#
+HSS-1013-bystar# lsf
+bisos-deb13-rootless-sysd.container  build.bash*  dockerConf/  Dockerfile  podmanProc.spcs*  __pycache__/  run.bash*  verify.sh*
+HSS-1013-bystar# ./verify.sh
+== Verifying rootless container: bisos-deb13-rootless-sysd (exec-free) ==
+  [FAIL] container is running
+        <no output>
+  [FAIL] container is rootless (not privileged, non-root host UID)
+        <no output>
+  [PASS] host port listening: SSH (2226)
+  [PASS] host port listening: VNC (5905)
+  [PASS] host port listening: noVNC (6905)
+  [PASS] noVNC HTTP responds (:6905)
+  [PASS] SSH login works (sshpass, bystar@localhost:2226)
+  [PASS] systemd is PID 1
+  [PASS] service active: vncserver
+  [PASS] service active: novnc
+  [PASS] service active: sshd-container
+  [PASS] system state: running
+== 10 passed, 0 warnings, 2 failed ==
+HSS-1013-bystar# pwd
+/bxRepos/bxObjects/bro_dockerfiles/debian/13/rootless-sysd/vnc/xfce/bisos_deb13-rootless-sysd
