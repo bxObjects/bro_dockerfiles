@@ -183,7 +183,7 @@ def repoStructureAtAGlance(
                fillcolor='lightyellow',
                margin='0.25,0.2')
         s.node('path_spcs',
-               '.spcs Path (current)\n\ndockerProc.spcs (docker)\npodmanProc.spcs (rootless)\n-i containerProc_build\n-i containerProc_verify\n-i containerProc_composeUp / run',
+               '.spcs Path (current)\n\ndockerProc.spcs (docker)\npodmanProc.spcs (rootless)\n-i containerProc_imageBuild\n-i containerProc_instanceUp\n-i containerProc_instanceVerify\n-i containerProc_fullClean',
                shape='rectangle',
                style='filled',
                fillcolor='darkseagreen3',

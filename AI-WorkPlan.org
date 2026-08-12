@@ -256,6 +256,230 @@ and Key Design Decisions (recorded the two build fixes: =USER root= and the
 =cgroupns: host= → =cgroup: host= correction, plus the rootless-sysd rationale
 and the v1 overlay).
 
+** DONE [#B] .spcs commands: full noun-consistent rename to image/instance :aiAndMe:
+SCHEDULED: <2026-08-11 Tue>
+CLOSED: [2026-08-11 Tue]
+_Code owner: =bisos.dockerProc/py3/bisos/dockerProc/containerProc_csu.py=_
+
+The current Cmnd surface conflates "image" (what =build= produces) and
+"instance" (what =compose up= or =run= creates). Rename all Cmnds to
+carry an explicit noun prefix. New surface:
+
+| Section  | Cmnd                          | Old name (if any)      | Purpose                                       |
+|----------+-------------------------------+------------------------+-----------------------------------------------|
+| Image    | =containerProc_imageBuild=    | =containerProc_build=  | docker/podman build (--noCache flag preserved) |
+| Image    | =containerProc_imageDelete=   | (new)                  | docker/podman rmi (image only, no instance)   |
+| Instance | =containerProc_instanceUp=    | =containerProc_composeUp= (docker) / =containerProc_run= (podman) | Create + start instance |
+| Instance | =containerProc_instanceDown=  | =containerProc_composeDown= | Stop instance (does NOT remove)         |
+| Instance | =containerProc_instanceDelete= | (new)                 | Stop + rm instance (image kept)               |
+| Instance | =containerProc_instanceVerify= | =containerProc_verify= | Host-side + SSH readiness checks             |
+| Instance | =containerProc_instanceStatus= | =containerProc_status= | engine inspect + SSH systemd status          |
+| Instance | =containerProc_instancePs=    | (new)                  | =docker/podman ps -a= grepped for this leaf's container |
+| Instance | =containerProc_instanceLogs=  | (new)                  | =docker/podman logs= (=-f= for follow)        |
+| Instance | =containerProc_instanceExec=  | (new)                  | Open shell in running instance                |
+| Instance | =containerProc_instanceRestart= | (new)                | Stop + start (in-place restart)               |
+| Combined | =containerProc_fullClean=     | =containerProc_clean=  | =imageDelete= + =instanceDelete= (comment says so) |
+
+Notes:
+- =instanceUp= collapses =composeUp= and =run= into one Cmnd. The Cmnd
+  body dispatches on =p.engine=: docker → =docker compose up -d=;
+  podman → =podman run --systemd=always=. Same for =instanceDown= vs
+  =docker compose down= / =podman stop=.
+- All =instance*= Cmnds anticipate the Stage 4 Platform Registrar work
+  in =bisos.dockerProc=: they will later gain an =--instance=N= arg
+  (default =instance0=). Naming leaves room; no per-instance logic yet.
+- Existing =examples_csu()= entries updated to use the new names.
+- Keep the old class names as thin =DeprecationWarning=-emitting
+  aliases for one release, so already-planted =.spcs= files that use
+  the old names via the CLI don't break silently.
+----- AI Results: ------
+Implemented in =bisos.dockerProc/py3/bisos/dockerProc/containerProc_csu.py=.
+Renames complete: 5 renames + 5 new Cmnds + 1 combined = 12 total. New
+Cmnds: =containerProc_imageBuild=, =containerProc_imageDelete=,
+=containerProc_instanceUp=, =containerProc_instanceDown=,
+=containerProc_instanceDelete=, =containerProc_instanceRestart=,
+=containerProc_instancePs=, =containerProc_instanceLogs=,
+=containerProc_instanceExec=, =containerProc_instanceVerify=,
+=containerProc_instanceStatus=, =containerProc_fullClean=. =instanceUp=
+and =instanceDown= dispatch on =p.engine= internally (docker →
+=docker compose=, podman → =podman run/stop=). Deprecation aliases
+in place for all 7 old names (=containerProc_build=, etc.) --- these
+emit =DeprecationWarning= and delegate to the new class. Verified with
+smoke test in =py3/tests/verify.sh= (12/12 new + 7/7 old + params
+function all PASS).
+
+** DONE [#B] .spcs examples menu: filter by =p.engine= and =p.profile= :aiAndMe:
+SCHEDULED: <2026-08-11 Tue>
+CLOSED: [2026-08-11 Tue]
+_Code owner: =bisos.dockerProc/py3/bisos/dockerProc/containerProc_csu.py=_
+
+Depends on the rename TODO above (uses the new noun-consistent names).
+
+Today =examples_csu()= shows every command including ones that don't
+apply to the current leaf. On a =rootless-sysd= leaf, users still see
+=containerProc_composeUp= (docker-only); on a docker leaf, they see
+=containerProc_run --detach= (podman-only). Should hide the inapplicable
+side.
+
+Concrete filtering (pure function of =p=):
+- =p.engine == Docker=  → show =instanceUp=/=instanceDown= only, hide podman-specific flags.
+- =p.engine == Podman= → show =instanceUp= (with =--detach=) only, no =composeUp=/=composeDown= at all.
+- =p.profile == Confined= → hide any =systemd=-specific options in help text.
+- =p.cgroupVariants= includes only =V2= → hide =--cgroupVer="v1"= option.
+
+Implementation: replace the current sequential =cmnd(...)= calls in
+=examples_csu()= with a conditional structure that reads =p= first
+(via =paramsFromPlantPath()=), then emits only the relevant menu
+chapters and options.
+
+Not in scope for this TODO: host-identity awareness (=c1= vs =c2=). See
+=hostFacts TODO= below.
+----- AI Results: ------
+=examples_csu()= rewritten. Reads =p= via =paramsFromPlantPath()= first;
+on docker leaves shows only docker-side (=instanceUp= with =--cgroupVer=v1=
+alternative when =p.cgroupVariants= includes V1); on podman leaves shows
+only =instanceUp --detach=true=. Suggests =ssh -p <sshPort>= as the
+preferred alternative on rootless-sysd leaves (podman exec unreliable on
+old Podman). If no planted context, falls back to =_examplesUnfiltered()=
+which shows the full surface. Verified live on both a deb13 rootless-sysd
+leaf (podman-only surface, no --cgroupVer flag since v1 unsupported) and
+a deb13 privileged leaf (docker surface with --cgroupVer=v1 shown since
+this profile supports both v1 and v2).
+
+** DONE [#B] Implement new instance-lifecycle Cmnds (ps, logs, exec, restart) :ai:
+SCHEDULED: <2026-08-11 Tue>
+CLOSED: [2026-08-11 Tue]
+_Code owner: =bisos.dockerProc/py3/bisos/dockerProc/containerProc_csu.py=_
+
+Depends on the rename TODO above.
+
+Each new Cmnd is a thin wrapper over =_run([engine, <subcmd>, ...])=:
+
+| Cmnd                            | Body                                                                             |
+|---------------------------------+----------------------------------------------------------------------------------|
+| =containerProc_instancePs=      | =_run([engine, 'ps', '-a', '--filter', f'name={p.imageName}'])=                  |
+| =containerProc_instanceLogs=    | =_run([engine, 'logs'] + (['-f'] if follow else []) + [p.imageName])=            |
+| =containerProc_instanceExec=    | =_run([engine, 'exec', '-it', p.imageName, cmd or 'bash'])=                      |
+| =containerProc_instanceRestart= | =_run([engine, 'restart', p.imageName])=                                         |
+| =containerProc_imageDelete=     | =_run([engine, 'rmi', p.imageName], check=False)=                                |
+| =containerProc_instanceDelete=  | stop + rm sequence; =_run([engine, 'stop', p.imageName], check=False)=; then rm  |
+
+CS param additions (register in =commonParamsSpecify=):
+- =follow= --- truthy string, for =instanceLogs=.
+- =cmd= --- string, optional, for =instanceExec= (default =bash=).
+
+Add smoke tests to =py3/tests/verify.sh= — each new Cmnd invoked with
+no args should return help/exit cleanly, not crash.
+----- AI Results: ------
+All 4 new instance Cmnds implemented as thin =_run= wrappers, plus
+=instanceDelete= (stop+rm on podman; =docker compose down= on docker),
+=imageDelete= (rmi), and =fullClean= (stop+rm+rmi). Two new CS params
+registered in =commonParamsSpecify=: =follow= (for =instanceLogs= =-f=)
+and =execCmd= (for =instanceExec=, default =bash=). Smoke test added
+to =py3/tests/verify.sh= checking presence of all 12 new Cmnds + 7
+deprecated aliases + =commonParamsSpecify= --- all PASS.
+
+** TODO [#C] hostFacts: examples menu also aware of host identity/capability :aiAndMe:
+SCHEDULED: <2026-08-11 Tue>
+_Code owner: =bisos.dockerProc/py3/bisos/dockerProc/= (new module =hostFacts.py=)_
+
+Depends on the rename + examples-filtering TODOs above. Deferred until
+Stage 4 registrar work is underway --- both need per-host state.
+
+The examples menu should further filter based on *host* attributes,
+not just leaf attributes. E.g. on a cgroup-v1 host, always suggest
+=--cgroupVer="v1"= as the default; on a cgroup-v2 host, hide it. On
+=c1= (Debian 12), never suggest =rootless-sysd= (Podman 4.3.1 has
+known bugs); on =c2= (RHEL 8), warn about cgroup v1 + no reboot.
+
+Introduce a new pure module =containerProc/hostFacts.py=:
+- =HostFacts= dataclass: =hostname=, =cgroupVer=, =dockerAvailable=,
+  =podmanAvailable=, =podmanVersion=, =debianRelease= (if applicable).
+- =probeHostFacts() -> HostFacts= — pure probe function, no side effects.
+
+Feed =HostFacts= into the same context-specific examples generator
+built in the previous TODO, alongside =p= from =paramsFromPlantPath()=.
+
+Naturally couples to the Stage 4 Platform Registrar (dockerProc Stage
+4 TODO): the registrar's per-user, per-image, per-instance file tree
+grows a sibling per-host branch at
+=/bisos/platform/dockerProc/hostFacts/<hostname>/fps/=.
+----- AI Results: ------
+
+** DONE [#C] Document image-vs-instance model in README.org :ai:
+SCHEDULED: <2026-08-11 Tue>
+CLOSED: [2026-08-11 Tue]
+_Code owner: =bisos.dockerProc/README.org= AND =bro_dockerfiles/README.org=_
+
+Depends on all TODOs above being complete.
+
+Once the rename lands, update both READMEs:
+
+- =bisos.dockerProc/README.org=: the =Usage= section currently lists
+  seven commands as a flat table (=build=, =composeUp=, ...); replace
+  with two subsections =Image Commands= and =Instance Commands=, plus
+  a =fullClean= note. Update the =.spcs Path: Same Result via
+  bisos.dockerProc= subsection to use the new names.
+- =bro_dockerfiles/README.org=: the =Building= section shows
+  =dockerProc.spcs -i containerProc_build=; rename to
+  =containerProc_imageBuild=. The example flows shown in the ".spcs
+  Path: Same Result via bisos.dockerProc" subsection likewise.
+----- AI Results: ------
+=bisos.dockerProc/README.org=: rewrote =The Seed Commands= section as
+four grouped tables (Image, Instance, Verify+Status, Combined) with
+the new noun-consistent names; updated all example command flows to
+use =containerProc_imageBuild=/=containerProc_instanceUp=/etc.; added
+a note about deprecated old names still working with warning; updated
+TOC anchor + Key Files reference. =bro_dockerfiles/README.org=:
+updated the "Two Build Paths" section (=.spcs= path bullet) and all
+three per-profile examples under "=.spcs= Path: Same Result via
+bisos.dockerProc" subsection to use the new names; added a summary
+paragraph listing the three noun-prefix groups. Also regenerated
+=bro_dockerfiles/figures/repoStructureAtAGlance.png= — the .spcs path
+box label now shows =containerProc_imageBuild= / =containerProc_instanceUp=
+/ =containerProc_instanceVerify= / =containerProc_fullClean= instead
+of the old names.
+
+** DONE [#B] The <<availability of raw-bisos directory>> in results of all containers  :aiAndMe:
+SCHEDULED: <2026-08-08 Sat>
+CLOSED: [2026-08-11 Tue]
+The usual step after brining up the container is to go in ~/raw-bisos directory and
+run the install script. But this is not happening for all of them.
+The compose  script is using  relative path is that mandatory, or can we use absolute path?
+What if we were to create a /bisos/git/bxRepos/bxObjects/bro_dockerfiles/common/raw-bisos
+and use that for mounting at ~/raw-bisos.
+----- AI Results: ------
+Resolved by *baking the payload into the confined image* (no mount) with a
+single canonical source at =bro_dockerfiles/common/raw-bisos/=. Structure
+now:
+- =common/raw-bisos/= (canonical single source): 4 files ---
+  =installRawBisos.sh=, =postRawBisos.sh=, =raw-bisos.sh=, =README.org=.
+  Merged best-of-both from the two former divergent copies (deb12
+  README + =bash ./raw-bisos.sh= + =/shuttle/this chown= line).
+  Deleted a stray recursive =raw-bisos → /shuttle/this/raw-bisos= symlink
+  that was inside the old deb12 copy.
+- =debian/{12,13}/confined/vnc/xfce/bisos_deb*-fresh/raw-bisos= --- now a
+  symlink to =../../../../../../common/raw-bisos= (6 levels up). Docker
+  =COPY= follows the symlink, so both confined Dockerfiles now =COPY
+  ./raw-bisos /home/$USERNAME/raw-bisos= + =RUN chmod +x= to bake the
+  payload into the image at =~/raw-bisos=.
+- =docker-compose.yml= × 4 + =docker-compose.cgv1.yml= × 2 (all 6 compose
+  files): removed the =../../../../confined/.../raw-bisos:/home/bystar/raw-bisos=
+  mount line + its two comment lines. No mount needed --- payload is in
+  the image.
+- =run.bash= × 2 (rootless-sysd): removed the =RAWBISOS=$(cd ...)= path
+  computation and the conditional =${RAWBISOS:+-v ...}= mount line.
+  Replaced with a one-line note.
+- Privileged and rootless-sysd variants inherit =~/raw-bisos= via
+  =FROM= the confined image --- no per-variant changes needed. This is
+  the elegant side effect of the existing FROM chain.
+- =README.org=: rewrote "Installing Raw-BISOS Inside a Container" section
+  to reflect the new "baked in, no mount" reality; added an "Updating
+  the payload" note explaining the single canonical source. Also
+  updated the =raw-bisos/= entry in the "Each image directory contains"
+  table to describe it as a symlink.
+
+
 ** -
 
 * Stage 4: Host cgroup constraints and the cgroup-v1 privileged overlay

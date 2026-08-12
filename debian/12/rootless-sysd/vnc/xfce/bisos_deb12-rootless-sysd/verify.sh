@@ -24,7 +24,7 @@
 
 set -u
 
-CONTAINER="${1:-bisos-deb12-rootless-sysd}"
+CONTAINER="${1:-bisos_deb12-rootless-sysd}"
 SSH_PORT="${2:-2225}"
 VNC_PORT="${3:-5904}"
 NOVNC_PORT="${4:-6904}"

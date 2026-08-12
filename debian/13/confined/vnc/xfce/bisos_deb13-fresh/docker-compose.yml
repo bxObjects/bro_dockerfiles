@@ -6,7 +6,7 @@ services:
       dockerfile: ./Dockerfile
 
     image: bisos/deb13-fresh-vnc-xfce:4
-    container_name: mb-deb13-fresh-xfce-4
+    container_name: bisos_deb13-fresh
 
     volumes:
        - ./:/shuttle/this

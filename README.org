@@ -183,7 +183,7 @@ Each image directory contains:
 | =run.bash=                          | (rootless-sysd) =podman run= launcher                  |
 | =*.container=                       | (rootless-sysd) Podman Quadlet unit (per-engineer)   |
 | =verify.sh=                         | (sysd) host-side smoke test of a running container   |
-| =raw-bisos/=                        | (confined only) Scripts to install Raw-BISOS inside  |
+| =raw-bisos= (symlink)               | (confined only) → =../../../../../../common/raw-bisos=; docker COPY follows symlink to bake =~/raw-bisos= into the image. Sysd variants inherit via =FROM=. |
 
 * Images
 
@@ -370,11 +370,13 @@ scheduled to become the only path later.
   standalone repo.
 
 - *=.spcs= path (current, framework-driven).* =./dockerProc.spcs -i
-  containerProc_build= (or =./podmanProc.spcs= for rootless-sysd leaves),
-  =-i containerProc_verify=, =-i containerProc_composeUp=, =-i
-  containerProc_run=. Requires =pipx install bisos.dockerProc=. Derives
-  engine, profile, ports, and base image from the leaf's directory path ---
-  no per-leaf configuration.
+  containerProc_imageBuild= (or =./podmanProc.spcs= for rootless-sysd
+  leaves), =-i containerProc_instanceUp=, =-i containerProc_instanceVerify=,
+  =-i containerProc_instanceDelete=, etc. Requires =pipx install
+  bisos.dockerProc=. Derives engine, profile, ports, and base image from
+  the leaf's directory path --- no per-leaf configuration. Cmnds are
+  organized by noun: =image*= for the built artefact, =instance*= for the
+  running container, =fullClean= for a combined teardown.
 
 The two paths coexist. Same Dockerfile, same layers, same running container
 --- the =.spcs= wrapper mostly just calls the same underlying =docker= /
@@ -444,27 +446,33 @@ it directly --- the leaf's path supplies engine, profile, and ports.
 
 #+BEGIN_SRC bash
 cd debian/12/confined/vnc/xfce/bisos_deb12-fresh
-./dockerProc.spcs -i containerProc_build           # with layer cache
-./dockerProc.spcs -i containerProc_build --noCache="true"
+./dockerProc.spcs -i containerProc_imageBuild           # with layer cache
+./dockerProc.spcs -i containerProc_imageBuild --noCache="true"
 #+END_SRC
 
 *** Privileged
 
 #+BEGIN_SRC bash
 cd debian/12/privileged/vnc/xfce/bisos_deb12-sysd
-./dockerProc.spcs -i containerProc_build
+./dockerProc.spcs -i containerProc_imageBuild
 #+END_SRC
 
 *** Rootless-sysd
 
 #+BEGIN_SRC bash
 cd debian/12/rootless-sysd/vnc/xfce/bisos_deb12-rootless-sysd
-./podmanProc.spcs -i containerProc_build
+./podmanProc.spcs -i containerProc_imageBuild
 #+END_SRC
 
 Run =./dockerProc.spcs= or =./podmanProc.spcs= with no arguments in any leaf
-to see the full menu (=containerProc_composeUp=, =containerProc_run=,
-=containerProc_verify=, =containerProc_status=, =containerProc_clean=).
+to see the full menu, filtered to just the commands relevant to that leaf.
+Cmnds fall into two noun-prefixed groups plus a combined command:
+
+- =containerProc_image*= --- =imageBuild=, =imageDelete=
+- =containerProc_instance*= --- =instanceUp=, =instanceDown=, =instanceDelete=,
+  =instanceRestart=, =instancePs=, =instanceLogs=, =instanceExec=,
+  =instanceVerify=, =instanceStatus=
+- =containerProc_fullClean= --- =instanceDelete= + =imageDelete= combined
 
 For the full design and the multi-tenant registrar picture (design-only in
 this phase), see
@@ -524,12 +532,17 @@ ssh -p <sshPort> bystar@localhost
 
 * Installing Raw-BISOS Inside a Container
 
-The =raw-bisos/= subdirectory in each confined image provides scripts for
-bootstrapping a full Raw-BISOS installation inside the container. After
-=docker compose up -d=, exec into the container and run:
+The Raw-BISOS bootstrap payload (=installRawBisos.sh=, =postRawBisos.sh=,
+=raw-bisos.sh=) is *baked into every image* at =~/raw-bisos= --- no host
+mount needed. Single canonical source at =bro_dockerfiles/common/raw-bisos/=,
+symlinked into each confined leaf's build context, then =COPY=-ed into the
+image by the confined Dockerfile. Privileged and rootless-sysd variants
+inherit =~/raw-bisos= via =FROM= the confined image.
+
+After starting a container, exec/ssh in and run:
 
 #+BEGIN_SRC bash
-docker exec -it <containerName> bash
+docker exec -it <containerName> bash    # or: ssh -p <sshPort> bystar@localhost
 cd ~/raw-bisos
 bash installRawBisos.sh
 #+END_SRC
@@ -539,6 +552,12 @@ See https://github.com/bxGenesis/start for details.
 
 After installation, run =postRawBisos.sh= to wire up =~/.bashrc= and set
 ownership of =/shuttle/this=.
+
+*Updating the payload.* To change the bootstrap scripts, edit files under
+=bro_dockerfiles/common/raw-bisos/= (single canonical location) and rebuild
+the confined image. The change flows to privileged and rootless-sysd via
+their =FROM= inheritance --- rebuild them too if you want the update to
+land in those variants.
 
 * Related Resources
 

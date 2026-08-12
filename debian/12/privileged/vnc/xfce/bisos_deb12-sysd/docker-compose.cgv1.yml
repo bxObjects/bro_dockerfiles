@@ -32,16 +32,13 @@ services:
       dockerfile: ./Dockerfile
 
     image: bisos/deb12-sysd-vnc-xfce:1
-    container_name: mb-deb12-sysd-xfce-cgv1
+    container_name: bisos_deb12-sysd
 
     privileged: true
     # NOTE: no `cgroup: host` here --- unsupported/meaningless on cgroup v1.
 
     volumes:
        - ./:/shuttle/this
-       # raw-bisos (fresh-Debian -> Raw-BISOS) SHARED from the confined image,
-       # not duplicated. Mounted at the container's ~/raw-bisos.
-       - ../../../../confined/vnc/xfce/bisos_deb12-fresh/raw-bisos:/home/bystar/raw-bisos
        - /sys/fs/cgroup:/sys/fs/cgroup:ro
        - /sys/fs/cgroup/systemd:/sys/fs/cgroup/systemd:rw
     tmpfs:

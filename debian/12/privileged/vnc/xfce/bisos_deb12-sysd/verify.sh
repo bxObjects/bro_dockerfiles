@@ -12,7 +12,7 @@
 
 set -u
 
-CONTAINER="${1:-mb-deb12-sysd-xfce-1}"
+CONTAINER="${1:-bisos_deb12-sysd}"
 SSH_PORT="${2:-2223}"
 VNC_PORT="${3:-5902}"
 NOVNC_PORT="${4:-6902}"
