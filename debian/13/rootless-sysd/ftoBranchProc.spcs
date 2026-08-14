@@ -1,0 +1,39 @@
+#!/usr/bin/env python
+
+""" #+begin_org
+* ~[Summary]~ :: ftoBranchProc Spread Planted CS --- for the =debian/13/rootless-sysd= branch of
+  =bro_dockerfiles=. Beneath this branch, every leaf is a docker container image
+  (=confined= profile). The leaf-side seed is =bisos.dockerProc.containerProc-seed.cs=.
+
+  Wire-up:
+  - Import =ftoBranch_seed= for the =atexit=-based plant machinery (=_atExit_=).
+  - Import =containerProc_seedInfo= and call its =walkExamples()= to get the list
+    of leaf-verb example invocations that make sense across these leaves.
+  - Pass that list to =ftoBranch_seedInfo.setup(leafExamples=...)= so the branch's
+    =examples= menu renders proper =fto_forwardToLeaves= entries for every
+    containerProc_* verb.
+
+  Result: adding a new =containerProc_*= Cmnd in =bisos.dockerProc= (or updating
+  =walkExamples()= there) automatically shows up in this branch's examples menu.
+  The .spcs itself is stable --- consistency lives with the leaf-side seed.
+#+end_org """
+
+from bisos.fileObj import ftoBranch_seed  # noqa: F401  # type: ignore[unused-import] _atExit_
+from bisos.fileObj import ftoBranch_seedInfo
+
+from bisos.dockerProc import containerProc_seedInfo
+
+ftoBranch_seedInfo.setup(
+    leafExamples=containerProc_seedInfo.walkExamples(),
+    leafProcessors=containerProc_seedInfo.leafProcessorNames(),
+)
+
+# To override autodiscover of membership or ordering (optional), add
+# any of the following to the setup() call above:
+#   branchesExcludes=['.git', '_nodeBase_'],
+#   leavesOrdered=['leafA', 'leafB', 'leafC'],
+# etc.
+
+
+def examples_pcs() -> None:
+    pass

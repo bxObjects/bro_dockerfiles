@@ -40,6 +40,28 @@ make =.spcs= the only path. The
 [[#repo-structure-at-a-glance][Repo Structure at a Glance]] figure below
 shows both parts of the pair.
 
+*Architectural context.* =bro_dockerfiles= is *one realization* of a
+general BISOS pattern: a walkable BPO tree whose leaves are planted
+=.spcs= files driven by a domain-specific seed. In the three-box
+architecture documented at
+[[file:/bisos/git/auth/bxRepos/bisos-pip/pycs/spcs/README.org][=bisos.pycs/spcs/README.org=]],
+this repo is *Box 3 (Planted Tree)* --- the on-disk artifact the
+engineer assembles by planting =.spcs= files and marker files, not by
+writing Python. =bisos.dockerProc= is the corresponding *Box 2 (Custom
+Seed)* --- the domain seed authored once. *Box 1 (PyCS Infrastructure)*
+--- =bisos.csSeed=, =bisos.fileObj= --- is consumed as-is by both.
+Future BPO trees under the same pattern (=bro_lcnt=, static-web
+publication, and others) will follow the same shape with different
+leaf payloads and different domain seeds.
+
+Within this tree today, =debian/12/confined/= carries branch-side
+=ftoBranchProc.spcs= and marker files so it can be walked via
+=fto_forwardToLeaves= across its descendants; the other five leaves
+(privileged, rootless-sysd, deb13 chain) will follow. See
+[[file:/bisos/git/auth/bxRepos/bisos-pip/fileObj/README.org][=bisos.fileObj/README.org=]]
+for the walker; see the =pycs/spcs/README.org= link above for the
+full architecture.
+
 * Repo Structure at a Glance
 
 The figure below is a compact summary of everything in this repo: six
