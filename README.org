@@ -156,6 +156,26 @@ All images provide:
 - Base applications: Firefox ESR, Emacs, git, gedit, meld, synaptic
 - Default user =bystar= / password =insecure= with passwordless sudo
 
+** This tree is the test matrix for RawBisos-Reconstruction (container-based)
+
+*BISOS's equivalent of the common CI/CD pipeline is called
+RawBisos-Reconstruction.* The six leaves in this repo (deb12/deb13 ×
+confined/privileged/rootless-sysd) are the concrete test matrix for the
+*container-based variant*. Each image bakes =~/raw-bisos/installRawBisos.sh=
+which refreshes =raw-bisos.sh= from =bxGenesis/start= and runs it
+non-interactively.
+
+The full lifecycle (build → run → bootstrap from bxGenesis → verify → tear
+down) runs from planted =.spcs= files without a CI service or VM:
+
+: ./ftoBranchProc.spcs -i fto_forwardToLeaves --cmndName=containerProc_exec_installRawBisos
+
+Complements the *Vagrant-based variant* in =bxGenesis/start= (heavier;
+full-release validation). See [[file:/bisos/git/auth/bxRepos/bisos-pip/dockerProc/README.org][bisos.dockerProc/README.org]] for the
+pipeline verbs (=containerProc_imageBuild=, =containerProc_instanceUp=,
+=containerProc_exec_installRawBisos=, =containerProc_instanceVerify=,
+=containerProc_fullClean=) and the full one-shot recipe.
+
 * Structure of This Repo
 
 #+BEGIN_SRC
