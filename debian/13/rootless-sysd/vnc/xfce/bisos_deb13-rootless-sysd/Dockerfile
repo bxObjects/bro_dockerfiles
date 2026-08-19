@@ -12,7 +12,7 @@
 #
 # See run.bash / the Quadlet unit for the run-time configuration.
 
-FROM bisos/deb13-fresh-vnc-xfce:4
+FROM bisos_deb13-fresh:latest
 
 # The confined base image ends with USER bystar. systemd (PID 1) and the
 # build-time apt/systemctl steps below require root. Under rootless Podman
