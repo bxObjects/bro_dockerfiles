@@ -31,7 +31,7 @@ services:
       context: .
       dockerfile: ./Dockerfile
 
-    image: bisos/deb12-sysd-vnc-xfce:1
+    image: bisos_deb12-sysd:latest
     container_name: bisos_deb12-sysd
 
     privileged: true

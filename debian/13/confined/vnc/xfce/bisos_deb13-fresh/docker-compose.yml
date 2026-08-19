@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: ./Dockerfile
 
-    image: bisos/deb13-fresh-vnc-xfce:4
+    image: bisos_deb13-fresh:latest
     container_name: bisos_deb13-fresh
 
     volumes:

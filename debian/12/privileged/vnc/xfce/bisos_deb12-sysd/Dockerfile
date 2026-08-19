@@ -1,4 +1,4 @@
-FROM bisos/deb12-fresh-vnc-xfce:1.21
+FROM bisos_deb12-fresh:latest
 
 # The confined base image ends with USER bystar. systemd (PID 1) and all the
 # build-time apt/systemctl steps below require root, so switch to root and
