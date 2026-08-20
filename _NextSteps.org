@@ -11,20 +11,18 @@ SCHEDULED: <2026-08-19 Wed>
 * TODO [#A] If bystar exists, symlink to _bashrc is missing
 SCHEDULED: <2026-08-19 Wed>
 
-* TODO [#A] clone of bro_rawBisos is missing, do it along with other needed clones
-SCHEDULED: <2026-08-19 Wed>
--bxObjects/bro_rawBisos
-
-* TODO [#A] Run lcaChromeBinsPrep.sh
+* WAIT [#A] Run lcaChromeBinsPrep.sh rawBisos-sbom.pcs
 SCHEDULED: <2026-08-19 Wed>
 
 * TODO [#A] nginx-sysd.pcs has sysdUnitFileFunc=None, that should cuase no errors.
 SCHEDULED: <2026-08-19 Wed>
 
-* TODO [#A] Missing bisos.dnsCap  bisos.pyDblock bisos.webCap
+* TODO [#A] Missing Git Clone: bisos.fileObj  bisos.dnsCap  bisos.pyDblock bisos.webCap bxObjects/bro_rawBisos
 SCHEDULED: <2026-08-19 Wed>
+
+* TODO [#A] Missing pip install: bisos.fileObj bisos.pipreqsPlus
+SCHEDULED: <2026-08-19 Wed>
+
 
 * DONE [#A] to dnsCap add, addition of begin, end
 SCHEDULED: <2026-08-19 Wed>
-
-* TODO [#A] Run rawBios-sbom.pcs Soewhere -- apt-get ping sudo apt-get install iputils-ping
