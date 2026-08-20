@@ -9,6 +9,7 @@ services:
     container_name: bisos_deb12-sysd
 
     privileged: true
+    pids_limit: -1
     cgroup: host
 
     volumes:
