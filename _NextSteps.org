@@ -1,26 +1,30 @@
 #+title: Next Steps
 
-* TODO [#A] Make sure pids_limit is set to 16384 on all docker-compose.yml files
+* WAIT [#A] Make sure pids_lim
+it is set to 16384 on all docker-compose.yml files
     privileged: true
     pids_limit: 16384
     cgroup: host
 
-* TODO [#A] for deb13 bystar groups seem incomplete -- bisos is in but others are not
+    podman run --ulimit nofile=1048576:1048576 -d <image_name>
+
+
+* WAIT [#A] for deb13 bystar groups seem incomplete -- bisos is in but others are not
 SCHEDULED: <2026-08-19 Wed>
 
-* TODO [#A] If bystar exists, symlink to _bashrc is missing
+* WAIT [#A] If bystar exists, symlink to _bashrc is missing
 SCHEDULED: <2026-08-19 Wed>
 
 * WAIT [#A] Run lcaChromeBinsPrep.sh rawBisos-sbom.pcs
 SCHEDULED: <2026-08-19 Wed>
 
-* TODO [#A] nginx-sysd.pcs has sysdUnitFileFunc=None, that should cuase no errors.
+* WAIT [#A] nginx-sysd.pcs has sysdUnitFileFunc=None, that should cuase no errors.
 SCHEDULED: <2026-08-19 Wed>
 
-* TODO [#A] Missing Git Clone: bisos.fileObj  bisos.dnsCap  bisos.pyDblock bisos.webCap bxObjects/bro_rawBisos
+* WAIT [#A] Missing Git Clone: bisos.fileObj  bisos.dnsCap  bisos.pyDblock bisos.webCap bxObjects/bro_rawBisos
 SCHEDULED: <2026-08-19 Wed>
 
-* TODO [#A] Missing pip install: bisos.fileObj bisos.pipreqsPlus
+* WAIT [#A] Missing pip install: bisos.fileObj bisos.pipreqsPlus
 SCHEDULED: <2026-08-19 Wed>
 
 

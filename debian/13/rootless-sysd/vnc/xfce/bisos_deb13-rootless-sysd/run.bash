@@ -36,7 +36,7 @@ if [ "${1:-}" = "--rm" ]; then
   exit $?
 fi
 
-podman run -d \
+podman run --pids-limit=16384 -d \
   --name "$NAME" \
   --systemd=always \
   --stop-signal SIGRTMIN+3 \

@@ -35,6 +35,7 @@ services:
     container_name: bisos_deb12-sysd
 
     privileged: true
+    pids_limit: 16384
     # NOTE: no `cgroup: host` here --- unsupported/meaningless on cgroup v1.
 
     volumes:

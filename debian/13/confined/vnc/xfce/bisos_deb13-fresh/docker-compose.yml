@@ -8,6 +8,8 @@ services:
     image: bisos_deb13-fresh:latest
     container_name: bisos_deb13-fresh
 
+    pids_limit: 16384
+
     volumes:
        - ./:/shuttle/this
        # - /var/bisos/docker/:/shuttle/var
