@@ -66,3 +66,6 @@ networks:
     ipam:
       config:
         - subnet: 10.254.13.0/24
+
+
+# Just run:: docker compose -f docker-compose.cgv1.yml up -d

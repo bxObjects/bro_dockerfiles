@@ -75,6 +75,6 @@ else
 fi
 
 if [ -d ./raw-bisos ] ; then
-  rm -r -f ./raw-bisos
-  echo "  Ran:: rm -r -f ./raw-bisos"
+  # rm -r -f ./raw-bisos
+  echo "  Ran:: NOT rm -r -f ./raw-bisos"
 fi
