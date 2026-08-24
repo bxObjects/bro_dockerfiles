@@ -57,7 +57,7 @@ echo "   Pushing to: $DOCKER_HUB_USER"
 echo "    Full name: $FULL_IMAGE_NAME"
 echo
 
-rawBiosDir="../../../../../../common/raw-bisos"
+rawBisosDir="../../../../../../common/raw-bisos"
 
 if [ -d "${rawBisosDir}" ] ; then
   cp -r "${rawBisosDir}" .
