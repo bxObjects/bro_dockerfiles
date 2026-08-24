@@ -57,10 +57,24 @@ echo "   Pushing to: $DOCKER_HUB_USER"
 echo "    Full name: $FULL_IMAGE_NAME"
 echo
 
+rawBiosDir="../../../../../../common/raw-bisos"
+
+if [ -d "${rawBisosDir}" ] ; then
+  cp -r "${rawBisosDir}" .
+  echo "  Ran:: cp -r ${rawBisosDir} ."
+else
+  echo "  PROBLEM:: Missing Dir: ${rawBisosDir}"
+fi
+
 if [ $LOCAL_BUILD == 1 ];
 then
   docker build  -t $FULL_IMAGE_NAME .
 else
   # Build and push the images.
   docker buildx build --platform $PLATFORMS -t $FULL_IMAGE_NAME --push .
+fi
+
+if [ -d ./raw-bisos ] ; then
+  rm -r -f ./raw-bisos
+  echo "  Ran:: rm -r -f ./raw-bisos"
 fi
