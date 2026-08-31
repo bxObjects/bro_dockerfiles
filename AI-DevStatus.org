@@ -21,6 +21,15 @@ architecture, what works, what is untested and the design decisions made so far.
 This file is maintained by Claude. Updates are typically triggered by the
 =/bx-update-status= slash command, after major interactions, or before a release.
 
+* Related Blee Panel --- Docker/Containers
+
+Permanent, human-oriented Docker/container documentation and cross-cutting design
+decisions live in the Blee panel:
+=/bisos/git/auth/bxRepos/blee-binders/bisos-core/virtualization/docker/_nodeBase_/fullUsagePanel-en.org=
+(also reachable at =/bisos/panels/bisos-core/virtualization/docker/=). For example it
+records the =/dev/shm= resize to 2G (=dev-shm-resize.service=) added to the privileged
+sysd leaves so Chrome/Chromium run. Next Claude: consult and update it alongside these files.
+
 * Current State
 
 As of 2026-08-10. All Stage 1--4 TODOs complete. Two post-Stage-4 fixes applied

@@ -32,11 +32,12 @@ RUN find /lib/systemd/system/sysinit.target.wants/ -type l \
           /lib/systemd/system/rescue.service \
           /lib/systemd/system/rescue.target 2>/dev/null || true
 
-# Install systemd service units for VNC, noVNC, sshd, and /tmp remount.
+# Install systemd service units for VNC, noVNC, sshd, /tmp remount, /dev/shm resize.
 COPY dockerConf/vncserver.service      /etc/systemd/system/vncserver.service
 COPY dockerConf/novnc.service          /etc/systemd/system/novnc.service
 COPY dockerConf/sshd-container.service /etc/systemd/system/sshd-container.service
 COPY dockerConf/tmp-exec.service       /etc/systemd/system/tmp-exec.service
+COPY dockerConf/dev-shm-resize.service /etc/systemd/system/dev-shm-resize.service
 
 # Mask polkit --- it fails inside containers (no seat/active session) and would
 # leave systemd "degraded"; nothing here uses it (sudo is passwordless).
@@ -44,7 +45,8 @@ RUN systemctl mask polkit.service
 
 # Enable the services so systemd starts them at boot.
 # tmp-exec remounts /tmp with exec --- Docker's tmpfs applies noexec by default.
-RUN systemctl enable vncserver novnc sshd-container dbus tmp-exec
+# dev-shm-resize enlarges /dev/shm (Docker default 64M) so Chrome/Chromium run.
+RUN systemctl enable vncserver novnc sshd-container dbus tmp-exec dev-shm-resize
 
 # xstartup for VNC is already baked into the base image under /home/bystar/.vnc/
 # Nothing extra needed here.

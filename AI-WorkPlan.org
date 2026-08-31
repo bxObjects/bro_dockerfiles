@@ -31,6 +31,12 @@ under =----- AI Results: ------= and mark it DONE.
 
 @/bisos/git/bxRepos/bisos-pip/dockerProc/CLAUDE.md
 
+Related Blee panel (permanent, human-oriented Docker/container docs and
+cross-cutting decisions):
+=/bisos/git/auth/bxRepos/blee-binders/bisos-core/virtualization/docker/_nodeBase_/fullUsagePanel-en.org=
+(also at =/bisos/panels/bisos-core/virtualization/docker/=). E.g. it records the
+=/dev/shm=2G= resize (=dev-shm-resize.service=) on the privileged sysd leaves for Chrome.
+
 * Stage 0: Confirm AI's Understanding of This Repo's Context
 
 Goal: Confirm AI's understanding of the context and capture that in [[Context Confirmation]] TODO.
