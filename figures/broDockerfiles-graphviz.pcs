@@ -22,8 +22,10 @@ Vertical arrows within each row show FROM inheritance:
 External base images (debian:12.12, debian:13.1) sit above the confined column.
 
 Below the grid, two build/verify paths are shown as destination boxes:
-  1. Bash path (legacy, dashed border) --- build.bash / verify.sh / docker-compose / run.bash
-  2. .spcs path (current) --- dockerProc.spcs / podmanProc.spcs delegating to bisos.dockerProc
+  1. Bash path (standalone, no BISOS) --- build.bash / verify.sh / docker-compose / run.bash
+  2. .spcs path (framework) --- dockerProc.spcs / podmanProc.spcs delegating to bisos.dockerProc
+Both are permanent peers, maintained at parity; the bash path is the only
+one available on hosts without BISOS (e.g. the old RedHat VMs).
 
 bisos.dockerProc (external package) is shown on the right, planting the
 .spcs files into every leaf.
@@ -53,11 +55,11 @@ namedGraphsList = [
                "release (12, 13); columns are init/isolation profile "
                "(confined, privileged, rootless-sysd). Vertical arrows "
                "within each row show FROM inheritance. Two build/verify "
-               "paths are available for every leaf --- the legacy bash "
-               "path (dashed border) and the current .spcs path driven "
+               "paths are available for every leaf --- the standalone bash "
+               "path (no BISOS required) and the framework .spcs path driven "
                "by bisos.dockerProc, which plants dockerProc.spcs into "
                "docker leaves and podmanProc.spcs into rootless-sysd "
-               "leaves."),
+               "leaves. Both are permanent peers, maintained at parity."),
 ]
 
 graphvizSeed.setup(
@@ -90,8 +92,8 @@ def repoStructureAtAGlance(
     #   lightsteelblue  = confined leaves
     #   mistyrose       = privileged leaves
     #   khaki1          = rootless-sysd leaves (differentiate from privileged)
-    #   lightyellow     = bash path box (dashed border = legacy)
-    #   darkseagreen3   = .spcs path box (current / primary)
+    #   lightyellow     = bash path box (standalone --- no BISOS required)
+    #   darkseagreen3   = .spcs path box (framework --- needs bisos.dockerProc)
     #   solid FROM edge = image inheritance
     #   dotted edge     = ".spcs planted here" (from bisos.dockerProc to leaves)
     #   dashed edge     = "operates on" (path box to leaves)
@@ -177,13 +179,13 @@ def repoStructureAtAGlance(
     with d.subgraph() as s:
         s.attr(rank='same')
         s.node('path_bash',
-               'Bash Path (legacy)\n\nbuild.bash\nverify.sh\ndocker compose up\nrun.bash (rootless)\n\n(retires later)',
+               'Bash Path (standalone)\n\nbuild.bash\nverify.sh\ndocker compose up\nrun.bash (rootless)\n\n(no BISOS required)',
                shape='rectangle',
-               style='dashed,filled',
+               style='filled',
                fillcolor='lightyellow',
                margin='0.25,0.2')
         s.node('path_spcs',
-               '.spcs Path (current)\n\ndockerProc.spcs (docker)\npodmanProc.spcs (rootless)\n-i containerProc_imageBuild\n-i containerProc_instanceUp\n-i containerProc_instanceVerify\n-i containerProc_fullClean',
+               '.spcs Path (framework)\n\ndockerProc.spcs (docker)\npodmanProc.spcs (rootless)\n-i containerProc_imageBuild\n-i containerProc_instanceUp\n-i containerProc_instanceVerify\n-i containerProc_fullClean',
                shape='rectangle',
                style='filled',
                fillcolor='darkseagreen3',

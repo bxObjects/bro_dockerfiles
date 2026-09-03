@@ -41,8 +41,10 @@ Stage 5 planting is complete. =dockerProc.spcs= is planted in all four docker
 leaves (deb12/13 × confined/privileged) and =podmanProc.spcs= in both rootless-sysd
 leaves. All six paths derive correct parameters from their directory location via
 =bisos.dockerProc.containerProc_seedInfo.paramsFromPlantPath()=. The per-leaf bash
-scripts (=build.bash=, =verify.sh=, =run.bash=, =docker-compose.yml=) remain in place
-pending live end-to-end verification of the spcs commands against a running container.
+scripts (=build.bash=, =verify.sh=, =run.bash=, =docker-compose.yml=) are a
+*permanent standalone peer* of the spcs path --- they require no BISOS install and
+are the only path that works on hosts without BISOS (notably the old RedHat VMs).
+They are maintained at parity with the spcs path, not phased out.
 
 The repo has a three-peer image hierarchy along an *init/isolation profile*
 axis: =confined= (docker, unprivileged, no systemd), =privileged= (docker,
@@ -91,7 +93,9 @@ parameter files.
 
 ** Privileged images (=bisos_deb{12,13}-sysd=)
 
-- Base: =FROM bisos/deb12-fresh-vnc-xfce:1.21= (or deb13 equivalent) — layers on confined
+- Base: =FROM bisos_deb12-fresh:latest= (or deb13 equivalent) — layers on confined.
+  Image names match =paramsFromPlantPath()= on BOTH paths; the DockerHub names
+  (=bisos/deb12-sysd-vnc-xfce:1=) are used only by =build.bash -u= (upload).
 - =USER root= immediately after FROM (base ends as =USER bystar=; systemd + build steps need root)
 - Init: =/sbin/init= (systemd PID 1); =STOPSIGNAL SIGRTMIN+3=
 - Services: =vncserver.service=, =novnc.service=, =sshd-container.service=, =tmp-exec.service= installed and enabled
@@ -105,7 +109,8 @@ parameter files.
   =/sys/fs/cgroup:ro= + =/sys/fs/cgroup/systemd:rw=, container_name suffixed =-cgv1=;
   includes explicit =networks:= block with =subnet: 10.254.13.0/24= (deb13) to handle
   hosts where Docker's default bridge pool is exhausted
-- =build.bash=: supports =-d= (local build) and =-n= (=--no-cache=)
+- =build.bash=: local build is the DEFAULT; =-u= uploads to DockerHub, =-n= is
+  =--no-cache=, =-d= accepted as a no-op. Fails fast if the =FROM= base is absent.
 - Ports (host): deb12 SSH=2223 VNC=5902 noVNC=6902; deb13 SSH=2224 VNC=5903 noVNC=6903
 
 ** Rootless-sysd images (=bisos_deb{12,13}-rootless-sysd=)
@@ -117,7 +122,9 @@ parameter files.
 - Per-engineer multi-tenant form: Quadlet =*.container= unit (=systemctl --user=
   + =loginctl enable-linger=).
 - =build.bash=: uses =--isolation=chroot= for all podman builds; auto-builds confined
-  base if missing in Podman's store.
+  base if missing in Podman's store. Same flags as the docker leaves (default local,
+  =-u= upload, =-n= no-cache). NOTE: the old RedHat VMs cannot run podman at all, so
+  these two leaves are off the standalone path's critical use case.
 - =verify.sh=: exec-free (SSH-based); =degraded= is WARN not FAIL.
 - Ports (host): deb12 SSH=2225 VNC=5904 noVNC=6904; deb13 SSH=2226 VNC=5905 noVNC=6905
 - Requires: rootless Podman + crun + cgroup v2 with controller delegation.
@@ -134,16 +141,17 @@ parameter files.
 Check with: =stat -fc %T /sys/fs/cgroup= (=cgroup2fs= = v2; =tmpfs= = v1/hybrid).
 RHEL 8 defaults to v1; flip via =grubby ... systemd.unified_cgroup_hierarchy=1= + reboot.
 
-** Stage 5: containerProc spcs framework
+** Stage 5: containerProc spcs framework --- a peer of the bash path
 
-The per-leaf bash scripts are pre-framework scaffolding. The replacement:
+The spcs path sits alongside the per-leaf bash scripts; it does not replace them:
 
 - Docker leaves plant =dockerProc.spcs=; rootless-sysd leaves plant =podmanProc.spcs=
 - Both delegate to =containerProc-seed.cs= in =bisos.dockerProc=
 - The seed parses =plantOfThisSeed= path to derive all operating parameters —
   no per-leaf configuration files needed
-- Leaf directories will contain only =Dockerfile=, =dockerConf/= assets, and the
-  thin =.spcs= file
+- Leaf directories contain =Dockerfile=, =dockerConf/= assets, the thin =.spcs=
+  file, *and* the standalone bash scripts --- the latter because =.spcs= needs
+  =bisos.dockerProc= installed, which is impossible on the old RedHat VMs
 
 Path-to-parameter mapping:
 
@@ -198,7 +206,9 @@ Implementation is tracked in =bisos.dockerProc= Stage 1:
   though Dockerfile and scripts are unchanged.
 - Stage 5 spcs live commands: =dockerProc.spcs= planted and path-verified in all six leaves;
   actual =build= / =verify= against a running container not yet exercised end-to-end.
-  Per-leaf bash scripts remain until live verification passes.
+- Per-leaf bash scripts: not verified on their actual target, an old RedHat VM
+  without BISOS. They have only been exercised on Debian BISOS hosts, where the
+  spcs path is also available.
 
 * Key Design Decisions
 
@@ -250,8 +260,27 @@ Implementation is tracked in =bisos.dockerProc= Stage 1:
 - *graphroot on large local disk* — rootless Podman store must not be on near-full
   or NFS filesystem. Set via =~/.config/containers/storage.conf=.
 
+- *Keep =cgroup_manager = systemd= at RUNTIME (rootless-sysd)* — do NOT switch the
+  runtime cgroup manager to =cgroupfs=; it was tried and the container then fails to
+  boot. Note the trap: =podmanHostVerify.cs= suggests
+  =podman --cgroup-manager=cgroupfs= as a fix when no user systemd/D-Bus session is
+  reachable. That advice applies to *build* only. The correct runtime fix for a
+  missing session is a real user login session (not =su=) plus
+  =loginctl enable-linger=, keeping =cgroup_manager = systemd=.
+
 - *Debian 12 vs 13 host (rootless-sysd)* — Podman 4.3.1 (Debian 12) needs chroot
   isolation + exec-free verify. Podman 5.4.2 (Debian 13) fixes both.
+
+- *Bash path and spcs path are permanent peers, maintained at parity* — the
+  per-leaf =build.bash= / =run.bash= / =verify.sh= / =docker-compose*.yml= are
+  *required*, not scaffolding. The =.spcs= path needs =bisos.dockerProc=
+  installed; on the old RedHat VMs BISOS cannot be installed at all, so the
+  self-contained bash scripts are the only way to build and run these images
+  there. This is why =bro_dockerfiles= must stay usable standalone, and why a
+  change to either path should be mirrored into the other. *Do not treat the
+  bash scripts as redundant with the spcs commands* — they serve hosts the
+  spcs path cannot reach. Tracked by the =<<BashPathParity>>= TODO in
+  AI-WorkPlan.org.
 
 - *Directory path as configuration (Stage 5)* — the =debian/<release>/<profile>/vnc/xfce/<imageName>/=
   hierarchy encodes all operating parameters. =dockerProc.spcs= (docker leaves) and

@@ -34,9 +34,11 @@ meant to be used together. =bisos.dockerProc= provides the framework
 (planted =.spcs= files, path-derived parameters, seed CS commands);
 =bro_dockerfiles= provides the image specifications (Dockerfiles, systemd
 units, per-leaf assets) that the framework operates on. The two repos
-evolve together. Today the bash scripts (=build.bash=, =verify.sh=,
-=run.bash=) still work as a standalone alternative; a future release will
-make =.spcs= the only path. The
+evolve together. Alongside that pair, the per-leaf bash scripts
+(=build.bash=, =verify.sh=, =run.bash=, =docker-compose*.yml=) are a
+*permanent standalone path*: they need nothing but docker/podman, so this
+repo stays fully usable on hosts where BISOS is not installed --- notably
+the old RedHat VMs. Both paths are maintained at parity. The
 [[#repo-structure-at-a-glance][Repo Structure at a Glance]] figure below
 shows both parts of the pair.
 
@@ -54,13 +56,22 @@ Future BPO trees under the same pattern (=bro_lcnt=, static-web
 publication, and others) will follow the same shape with different
 leaf payloads and different domain seeds.
 
-Within this tree today, =debian/12/confined/= carries branch-side
-=ftoBranchProc.spcs= and marker files so it can be walked via
-=fto_forwardToLeaves= across its descendants; the other five leaves
-(privileged, rootless-sysd, deb13 chain) will follow. See
+Within this tree today, =ftoBranchProc.spcs= is planted at all nine
+branch directories (=debian/=, =debian/1{2,3}/=, and each of the six
+profile dirs), and every branch wires the walker to =bisos.dockerProc=
+via =leafExamples=/=leafProcessors=. Leaves are detected
+*definitionally* --- by the presence of a planted =dockerProc.spcs= or
+=podmanProc.spcs= --- so no per-leaf =_tree_= marker is needed and a
+walk from =debian/= reaches all six leaves. Branch-side =_tree_= /
+=_treeProc_= markers are so far planted only at
+=debian/12/confined/=; the other eight will follow. See
 [[file:/bisos/git/auth/bxRepos/bisos-pip/fileObj/README.org][=bisos.fileObj/README.org=]]
 for the walker; see the =pycs/spcs/README.org= link above for the
 full architecture.
+
+For how this repo relates to =bisos.dockerProc=, =bisos.fileObj= and the
+=rawBuild*= reconstruction commands, see
+[[#related-pieces-----where-this-fits][Related Pieces --- Where This Fits]] below.
 
 * Repo Structure at a Glance
 
@@ -79,8 +90,8 @@ first, then the figure.
 | Khaki leaf (=box3d=)               | *rootless-sysd* profile leaf --- rootless podman + systemd PID 1.          |
 | =FROM= arrow                       | Image inheritance. Confined images inherit from Debian; sysd variants inherit from confined. |
 | =(same FROM)= dotted connector     | Privileged and rootless-sysd of the same release share their =FROM= base.  |
-| Yellow rectangle (dashed border)   | *Bash path (legacy)* --- =build.bash= / =verify.sh= / =docker compose= / =run.bash=. Retires later. |
-| Green rectangle                    | *=.spcs= path (current)* --- =dockerProc.spcs= / =podmanProc.spcs= via =bisos.dockerProc=.  |
+| Yellow rectangle                   | *Bash path (standalone)* --- =build.bash= / =verify.sh= / =docker compose= / =run.bash=. No BISOS required. |
+| Green rectangle                    | *=.spcs= path (framework)* --- =dockerProc.spcs= / =podmanProc.spcs= via =bisos.dockerProc=. |
 | Thistle ellipse (right)            | =bisos.dockerProc= --- external pip package that provides the =.spcs= files. |
 | Dotted "plants" arrow              | =bisos.dockerProc= plants =.spcs= files into every leaf.                   |
 | Gray dashed "operates on" arrow    | Each path operates on *any* leaf (single edge drawn for legibility).       |
@@ -99,12 +110,12 @@ first, then the figure.
 - *Two build/verify paths (bottom-left).* Every leaf supports two ways
   of being built, verified, and run. The bash path (=build.bash=,
   =verify.sh=, =docker compose=, =run.bash=) works standalone --- no
-  =bisos.dockerProc= install required, keeps the repo usable on its
-  own. The =.spcs= path (=dockerProc.spcs= for docker leaves,
+  =bisos.dockerProc= install required, keeping the repo usable on hosts
+  without BISOS. The =.spcs= path (=dockerProc.spcs= for docker leaves,
   =podmanProc.spcs= for rootless-sysd leaves) derives all parameters
-  from the leaf's directory path via =bisos.dockerProc=. The bash path
-  is dashed because it will be retired in a future release once the
-  =.spcs= path has full parity.
+  from the leaf's directory path via =bisos.dockerProc=. Both are
+  permanent and maintained at parity --- which path you use depends on
+  whether BISOS is available on the host, not on which is newer.
 - *=bisos.dockerProc= (bottom-right).* The *companion* pip package
   --- the framework side of this pair. =bro_dockerfiles= provides the
   image specifications; =bisos.dockerProc= provides the machinery that
@@ -116,6 +127,8 @@ first, then the figure.
 
 * Table of Contents     :TOC:
 - [[#repo-structure-at-a-glance][Repo Structure at a Glance]]
+- [[#related-pieces-----where-this-fits][Related Pieces --- Where This Fits]]
+  - [[#two-ways-to-drive-more-than-one-leaf][Two Ways to Drive More Than One Leaf]]
 - [[#scope-of-this-repo][Scope of This Repo]]
   - [[#this-tree-is-the-test-matrix-for-rawbisos-reconstruction-container-based][This tree is the test matrix for RawBisos-Reconstruction (container-based)]]
 - [[#structure-of-this-repo][Structure of This Repo]]
@@ -141,6 +154,62 @@ first, then the figure.
   - [[#credentials][Credentials:]]
 - [[#installing-raw-bisos-inside-a-container][Installing Raw-BISOS Inside a Container]]
 - [[#related-resources][Related Resources]]
+
+* Related Pieces --- Where This Fits
+  :PROPERTIES:
+  :CUSTOM_ID: related-pieces-----where-this-fits
+  :END:
+
+This repo is one of *four related pieces*. Each has a distinct job and none
+subsumes another. This repo holds the *content*; the other three are machinery
+that operates on it.
+
+| Piece                                | Kind        | Job                                                                                                                                                                       |
+|--------------------------------------+-------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| =bro_dockerfiles= (*this repo*)        | BRO (repo)  | *Container image specifications.* The six-leaf matrix --- Dockerfiles, systemd units, per-leaf assets, and the =~/raw-bisos= payload baked into each image.                  |
+| [[https://github.com/bisos-pip/dockerProc][=bisos.dockerProc=]]                  | pip package | *Container framework.* The planted =dockerProc.spcs= / =podmanProc.spcs=, path-derived parameters, and the =containerProc_*= verbs that build / run / verify one leaf.       |
+| [[https://github.com/bisos-pip/fileObj][=bisos.fileObj=]]                      | pip package | *Generic tree walker.* FTO marker conventions plus =ftoBranchProc.spcs=, which applies one verb across every leaf beneath a branch. Domain-agnostic --- knows nothing about containers. |
+| [[https://github.com/bisos/raw][=/bisos/core/raw/rebuild=]]           | git repo    | *RawBisos-Reconstruction --- BISOS's CI/CD.* =rawBuildBox.cs= / =rawBuildKvm.cs= / =rawBuildContainer.cs=: one uniform entry point for rebuilding Raw-BISOS on metal, in a KVM guest, or in a container. |
+
+The first two are *jointly designed* and evolve together --- specification and
+framework, described as a pair throughout this README. The other two are
+*consumers*: =bisos.fileObj= supplies the walker this tree plants at its
+branches, and =rawBuildContainer.cs= locates a leaf here and subprocess-invokes
+its planted =.spcs=, exactly as its siblings shell out to
+=sysCharGuestMaterialize.sh= and =sysCharBoxMaterialize.sh=.
+
+** Two Ways to Drive More Than One Leaf
+   :PROPERTIES:
+   :CUSTOM_ID: two-ways-to-drive-more-than-one-leaf
+   :END:
+
+Two facilities operate above a single leaf. They are not competing --- they
+answer *different questions*:
+
+- *=bisos.fileObj= walker --- location-addressed, breadth.* /One verb, every
+  leaf beneath where you are standing./ Selection is *position in this tree*:
+  stand at =debian/13/= and the verb reaches both Debian 13 leaves; stand at
+  =debian/= and it reaches all six.
+
+  #+BEGIN_SRC bash
+  cd debian
+  ./ftoBranchProc.spcs -i fto_forwardToLeaves --cmndName=containerProc_instanceVerify
+  #+END_SRC
+
+- *=rawBuildContainer.cs= --- parameter-addressed, depth.* /One leaf, an
+  ordered sequence of steps./ Selection is =freshDeb= plus =platformModel=
+  (=confined= / =sysd-priv= / =sysd-podman=), and each step maps onto one
+  =containerProc_*= verb run in the leaf's directory.
+
+  #+BEGIN_SRC bash
+  rawBuildContainer.cs -i procContainer --freshDeb="13" --platformModel="sysd-priv" \
+      --steps='["delete", "up", "installRawBisos", "verifyUp"]'
+  #+END_SRC
+
+The =rawBuild*= family deliberately does not use the walker: its sibling
+commands target a KVM guest by =bpoId= and a box by IP address, and have no
+tree to walk. A tree is a container-side property that only one of the three
+platform kinds has.
 
 * Scope of This Repo
 
@@ -176,6 +245,19 @@ full-release validation). See [[file:/bisos/git/auth/bxRepos/bisos-pip/dockerPro
 pipeline verbs (=containerProc_imageBuild=, =containerProc_instanceUp=,
 =containerProc_exec_installRawBisos=, =containerProc_instanceVerify=,
 =containerProc_fullClean=) and the full one-shot recipe.
+
+*Containers are one of three reconstruction substrates.* Above this tree,
+=/bisos/core/raw/rebuild= provides the platform-independent entry point:
+=rawBuildContainer.cs= for containers, =rawBuildKvm.cs= for KVM guests,
+=rawBuildBox.cs= for raw metal --- one uniform face for Raw-BISOS
+reconstruction regardless of what is being reconstructed. Its
+=procContainer= command drives *this* tree's leaves through an ordered
+=steps= pipeline:
+
+: rawBuildContainer.cs -i procContainer --freshDeb="13" --platformModel="sysd-priv" --steps='["delete", "up", "installRawBisos", "verifyUp"]'
+
+See [[file:/bisos/git/auth/bxRepos/bisos/raw/rebuild/README.org][=raw/rebuild/README.org=]] and
+[[#two-ways-to-drive-more-than-one-leaf][Two Ways to Drive More Than One Leaf]] above.
 
 * Structure of This Repo
 
@@ -404,28 +486,31 @@ something privileged on real hardware → only the privileged image can.
 ** Two Build Paths (bash and =bisos.dockerProc=)
 
 Every leaf directory supports *two build/verify paths* that produce the same
-result. Which one you use is a workflow choice today; the =.spcs= path is
-scheduled to become the only path later.
+result. Both are permanent peers, maintained at parity. Which one you use is
+determined by *what the host has available*, not by which is newer.
 
-- *Bash path (legacy, standalone).* =./build.bash= to build, =./verify.sh= to
-  smoke-test, =docker compose up -d= / =./run.bash= to run. Works without
-  =bisos.dockerProc= installed. Keeps =bro_dockerfiles= usable as a
-  standalone repo.
+- *Bash path (standalone --- no BISOS required).* =./build.bash= to build,
+  =./verify.sh= to smoke-test, =docker compose up -d= / =./run.bash= to run.
+  Needs nothing but docker/podman. This is what keeps =bro_dockerfiles=
+  usable as a standalone repo, and it is the *only* path available on hosts
+  without BISOS --- notably the old RedHat VMs, where =bisos.dockerProc=
+  cannot be installed.
 
-- *=.spcs= path (current, framework-driven).* =./dockerProc.spcs -i
-  containerProc_imageBuild= (or =./podmanProc.spcs= for rootless-sysd
-  leaves), =-i containerProc_instanceUp=, =-i containerProc_instanceVerify=,
-  =-i containerProc_instanceDelete=, etc. Requires =pipx install
-  bisos.dockerProc=. Derives engine, profile, ports, and base image from
-  the leaf's directory path --- no per-leaf configuration. Cmnds are
-  organized by noun: =image*= for the built artefact, =instance*= for the
-  running container, =fullClean= for a combined teardown.
+- *=.spcs= path (framework-driven --- requires =bisos.dockerProc=).*
+  =./dockerProc.spcs -i containerProc_imageBuild= (or =./podmanProc.spcs=
+  for rootless-sysd leaves), =-i containerProc_instanceUp=,
+  =-i containerProc_instanceVerify=, =-i containerProc_instanceDelete=, etc.
+  Requires =pipx install bisos.dockerProc=. Derives engine, profile, ports,
+  and base image from the leaf's directory path --- no per-leaf
+  configuration. Cmnds are organized by noun: =image*= for the built
+  artefact, =instance*= for the running container, =fullClean= for a
+  combined teardown.
 
-The two paths coexist. Same Dockerfile, same layers, same running container
---- the =.spcs= wrapper mostly just calls the same underlying =docker= /
-=podman= commands with the right arguments derived from the path. Later
-releases will retire the bash path once the =.spcs= path has full parity
-across all supported flows.
+The two paths coexist permanently. Same Dockerfile, same layers, same running
+container --- the =.spcs= wrapper mostly just calls the same underlying
+=docker= / =podman= commands with the right arguments derived from the path.
+Changes to one path should be mirrored into the other so the two stay at
+parity.
 
 ** Local-only Workflow
 
@@ -604,7 +689,17 @@ land in those variants.
 
 * Related Resources
 
-- =bisos.dockerProc= (companion pip package): https://github.com/bisos-pip/dockerProc
+- =bisos.dockerProc= (companion pip package --- the framework half of this
+  pair): https://github.com/bisos-pip/dockerProc ---
+  [[file:/bisos/git/auth/bxRepos/bisos-pip/dockerProc/README.org][local README]]
+- =bisos.fileObj= (the generic FTO tree walker planted at this tree's
+  branches): https://github.com/bisos-pip/fileObj ---
+  [[file:/bisos/git/auth/bxRepos/bisos-pip/fileObj/README.org][local README]]
+- =/bisos/core/raw/rebuild= (RawBisos-Reconstruction across boxes, guests and
+  containers): https://github.com/bisos/raw ---
+  [[file:/bisos/git/auth/bxRepos/bisos/raw/rebuild/README.org][local README]]
+- =.spcs= architecture (three-box layered figure):
+  [[file:/bisos/git/auth/bxRepos/bisos-pip/pycs/spcs/README.org][=bisos.pycs/spcs/README.org=]]
 - BISOS Bootstrap: https://github.com/bxGenesis/start
 - TigerVNC: https://tigervnc.org
 - noVNC: https://novnc.com

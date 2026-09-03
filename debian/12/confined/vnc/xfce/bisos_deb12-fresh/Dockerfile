@@ -133,9 +133,9 @@ RUN chmod +x dockerConf/entrypoint.sh \
 
 # Raw-BISOS bootstrap payload. Baked into the image at ~/raw-bisos so users can
 # run 'cd ~/raw-bisos && bash installRawBisos.sh' inside the container without
-# needing a host mount. The 'raw-bisos' entry in the build context is a symlink
-# to ../../../../../../common/raw-bisos --- docker COPY follows symlinks, so
-# there is a single canonical source shared by every confined leaf. The sysd
+# needing a host mount. The 'raw-bisos' entry in the build context is copied in
+# by ./build.bash from the single canonical source at
+# bro_dockerfiles/common/raw-bisos, shared by every confined leaf. The sysd
 # variants (privileged, rootless-sysd) inherit ~/raw-bisos via FROM.
 COPY --chown=$USERNAME:$USERNAME ./raw-bisos /home/$USERNAME/raw-bisos
 RUN chmod +x /home/$USERNAME/raw-bisos/*.sh

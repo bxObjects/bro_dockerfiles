@@ -20,7 +20,7 @@
 
 set -u
 
-IMAGE="bisos/deb12-rootless-sysd-vnc-xfce:1"
+IMAGE="bisos_deb12-rootless-sysd:latest"   # must match paramsFromPlantPath()
 NAME="bisos_deb12-rootless-sysd"
 
 # Host port assignments for the rootless-sysd deb12 variant.

@@ -1,20 +1,40 @@
 #!/bin/bash
+#
+# Build the deb12 rootless-sysd (bisos_deb12-rootless-sysd) image with podman.
+#
+# STANDALONE PATH. Needs nothing but podman --- no BISOS, no pip install.
+# Permanent peer of ./podmanProc.spcs, kept at parity with it.
+# See <<BashPathParity>> in ../../../../../../AI-WorkPlan.org
+#
+# NOTE: rootless podman requires a cgroup-v2 host with controller delegation.
+# The old RedHat VMs cannot run podman at all, so this leaf is NOT part of the
+# standalone path's critical use case --- the docker leaves (confined,
+# privileged) are. Kept current for consistency.
+#
+# Usage:
+#   ./build.bash            # local build (DEFAULT)
+#   ./build.bash -n         # local build, bypass the layer cache
+#   ./build.bash -u         # local build, then also push the DockerHub image
+#   ./build.bash -d         # accepted, no-op --- local is the default now
 
-# Build (and optionally push) the rootless-sysd image with Podman.
-# Mirrors the privileged variant's build.bash but uses podman instead of
-# docker/buildx.
+# --- Local image name -------------------------------------------------------
+# MUST match what bisos.dockerProc derives from this leaf's path
+# (paramsFromPlantPath -> imageName:latest). run.bash and podmanProc.spcs both
+# expect this name.
+LOCAL_IMAGE="bisos_deb12-rootless-sysd"
+LOCAL_TAG="latest"
 
-DOCKER_HUB_USER="bisos"
-IMAGE="deb12-rootless-sysd-vnc-xfce"
-TAG="1"
-PLATFORMS=linux/amd64,linux/arm64
-
-# Confined base image this image is FROM, and where to build it if missing.
-# These images are local-only (not fetched from DockerHub), so build.bash
-# resolves the base itself: if it is not already in podman's store, build it
-# from the confined image directory before building this image.
-BASE_IMAGE="bisos/deb12-fresh-vnc-xfce:1.21"
+# The confined image this one is FROM (see Dockerfile). Local-only: not pulled.
+# If it is missing from podman's store we build it from the confined leaf.
+BASE_IMAGE="bisos_deb12-fresh:latest"
 BASE_CONTEXT="../../../../confined/vnc/xfce/bisos_deb12-fresh"
+
+# --- DockerHub name ---------------------------------------------------------
+# Used ONLY by -u (upload). Irrelevant to a local build.
+DOCKER_HUB_USER="bisos"
+HUB_IMAGE="deb12-rootless-sysd-vnc-xfce"
+HUB_TAG="1"
+PLATFORMS=linux/amd64,linux/arm64
 
 # Build-time isolation. On some rootless hosts, buildah's default per-RUN
 # container/scope creation fails with:
@@ -25,30 +45,43 @@ BASE_CONTEXT="../../../../confined/vnc/xfce/bisos_deb12-fresh"
 # manager --- this flag only affects BUILD.
 ISOLATION="--isolation=chroot"
 
-LOCAL_BUILD=0
-getopts 'd' opt 2> /dev/null
-if [ "${opt:-}" == 'd' ]; then
-  LOCAL_BUILD=1
-fi
+UPLOAD=0
+NO_CACHE=""
+while getopts 'und' opt 2>/dev/null; do
+  case $opt in
+    u) UPLOAD=1 ;;
+    n) NO_CACHE="--no-cache" ;;
+    d) : ;;   # historical "local build" flag; local is the default now
+  esac
+done
 
-FULL_IMAGE_NAME=$DOCKER_HUB_USER/$IMAGE:$TAG
+FULL_LOCAL_NAME="$LOCAL_IMAGE:$LOCAL_TAG"
+FULL_HUB_NAME="$DOCKER_HUB_USER/$HUB_IMAGE:$HUB_TAG"
+
 echo
-echo "Building image: $IMAGE"
-echo "      With tag: $TAG"
-if [ $LOCAL_BUILD == 1 ]; then
-  echo "Using Builder: building locally (podman build)"
-else
+echo "Building image: $FULL_LOCAL_NAME  (local, podman)"
+echo "          From: $BASE_IMAGE"
+if [ $UPLOAD == 1 ]; then
+  echo "     Uploading: $FULL_HUB_NAME"
   echo " For platforms: $PLATFORMS"
-  echo "    Pushing to: $DOCKER_HUB_USER (podman manifest)"
+else
+  echo "     Uploading: no (use -u to push to DockerHub)"
 fi
-echo "     Full name: $FULL_IMAGE_NAME"
+[ -n "$NO_CACHE" ] && echo "      No cache: yes"
 echo
 
-# Ensure the confined base image is available in podman's store; build it
-# locally from the confined dir if not. (Local-only: we do not pull it.)
+# --- Ensure the confined base image is in podman's store --------------------
 if ! podman image exists "$BASE_IMAGE"; then
   echo "Base image $BASE_IMAGE not found in podman's store."
   if [ -f "$BASE_CONTEXT/Dockerfile" ]; then
+    # The confined Dockerfile does "COPY ./raw-bisos ...", so the payload must
+    # be in that build context first. Mirrors the confined leaf's build.bash.
+    rawBisosDir="../../../../../../common/raw-bisos"
+    if [ -d "$BASE_CONTEXT/$rawBisosDir" ]; then
+      rm -rf "$BASE_CONTEXT/raw-bisos"
+      cp -r "$BASE_CONTEXT/$rawBisosDir" "$BASE_CONTEXT/raw-bisos" \
+        && echo "  Ran:: cp -r <common/raw-bisos> $BASE_CONTEXT/raw-bisos"
+    fi
     echo "Building it from $BASE_CONTEXT ..."
     podman build $ISOLATION -t "$BASE_IMAGE" "$BASE_CONTEXT" || {
       echo "ERROR: base image build failed." >&2; exit 1; }
@@ -61,11 +94,13 @@ else
 fi
 echo
 
-if [ $LOCAL_BUILD == 1 ]; then
-  podman build $ISOLATION -t "$FULL_IMAGE_NAME" .
-else
+# --- Build ------------------------------------------------------------------
+podman build $ISOLATION $NO_CACHE -t "$FULL_LOCAL_NAME" . || exit 1
+
+if [ $UPLOAD == 1 ]; then
   # Multi-arch via a manifest list, then push.
-  podman manifest rm "$FULL_IMAGE_NAME" 2>/dev/null || true
-  podman build $ISOLATION --platform "$PLATFORMS" --manifest "$FULL_IMAGE_NAME" .
-  podman manifest push --all "$FULL_IMAGE_NAME" "docker://docker.io/$FULL_IMAGE_NAME"
+  podman manifest rm "$FULL_HUB_NAME" 2>/dev/null || true
+  podman build $ISOLATION $NO_CACHE --platform "$PLATFORMS" --manifest "$FULL_HUB_NAME" . || exit 1
+  podman manifest push --all "$FULL_HUB_NAME" "docker://docker.io/$FULL_HUB_NAME" || exit 1
+  echo "  Pushed:: $FULL_HUB_NAME"
 fi

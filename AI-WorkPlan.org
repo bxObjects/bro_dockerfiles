@@ -46,27 +46,52 @@ Goal: Confirm AI's understanding of the context and capture that in [[Context Co
 ** +
 ** DONE [#A] <<Context Confirmation>> for AI (typically triggered by /bx-confirm0) :aiAndMe:
 SCHEDULED: <2026-06-09 Tue>
-CLOSED: [2026-08-07 Thu]
+CLOSED: [2026-09-03 Thu]
 Must be repeated each time a new Claude instance is started here.
 Based on the series of files starting from CLAUDE.md in this repo,
 describe succinctly what you have understood.
 Enumerate explicitly which files you have imported and which you have considered.
 Prompt the user to confirm that the desired/appropriate model (/model) is being used for this project.
 ----- AI Results: ------
-Imported chain (in order): CLAUDE.md (regular file) → AI-WORKFLOW.org
+(Record refreshed [2026-09-03 Thu]; superseded the 2026-08-07 record, two of
+whose claims had gone stale --- see the last paragraph.)
+
+Local chain (in order): CLAUDE.md (regular file) → AI-WORKFLOW.org
 (symlink → /bisos/apps/defaults/ai-templates/mother/AI-WORKFLOW.org),
-AI-Activity.org (safe-copied =custom= template, placeholders still unfilled),
-AI-DevStatus.org, AI-WorkPlan.org.
-Considered but NOT resolvable: the cross-repo import in AI-WorkPlan.org,
-=@/bisos/git/bxRepos/bisos-pip/dockerProc/CLAUDE.md=, does not exist at that
-path — so the dockerProc reference panels were not actually imported this
-session (prior confirmation record notwithstanding).
-Repo understood as: BISOS Docker image specifications — XFCE4 desktops over
-VNC/noVNC/SSH on Debian 12 and 13, organized under
-=debian/{12,13}/{confined,privileged}/vnc/xfce/=. Confined = unprivileged
-(entrypoint.sh init); privileged = systemd PID 1 layered FROM confined.
-Stages 1 and 2 DONE; privileged images authored but not yet built/tested.
-Model: claude-opus-4-8 (1M context). User confirmed Opus is correct.
+AI-Activity.org (safe-copied =custom= template, *placeholders still
+unfilled*), AI-DevStatus.org, AI-WorkPlan.org.
+
+Cross-repo chain, via =@/bisos/git/bxRepos/bisos-pip/dockerProc/CLAUDE.md= in
+this file: *now resolves* (=/bisos/git/bxRepos= → =/bisos/git/auth/bxRepos=).
+It pulls in dockerProc's CLAUDE.md, its AI-WORKFLOW.org (symlink, same
+=mother/= file), AI-Activity.org (symlink → =ai-templates/bisos-pip/= ---
+shared and fully filled: COMEEGA, skills table, conventions), and
+dockerProc's own AI-DevStatus.org + AI-WorkPlan.org. Through that, the
+bisos-pip reference panels (bisos.b, PyCsFwrk, pycsFwrkLayerings,
+pyAdoptedPkgs, csPlayers, bisos-pip, bisos-pip-packaging) plus
+comeega/README.org, poly-dblock/README.org and bxGenesis/start/README.org.
+
+Considered, verified present, but referenced by path only (not auto-imported):
+the Docker Blee panel at
+=blee-binders/bisos-core/virtualization/docker/_nodeBase_/fullUsagePanel-en.org=.
+
+Repo understood as: BISOS Docker/Podman image specifications --- XFCE4 desktops
+over VNC/noVNC/SSH on Debian 12 and 13, on a three-peer *init/isolation
+profile* axis =debian/{12,13}/{confined,privileged,rootless-sysd}/vnc/xfce/=.
+The leaf path IS the configuration substrate: =paramsFromPlantPath()= in
+=bisos.dockerProc= derives engine/privilege/ports/base-image from it, so each
+leaf carries only a thin =.spcs=. Stages 1--5 planting DONE; one open TODO
+here (Stage 5: bring the per-leaf bash scripts to parity) plus a deferred [#C] hostFacts
+TODO in Stage 3.
+
+Two discrepancies found this session and worth carrying forward:
+- =ftoBranchProc.spcs= exists at every branch level (9 of them) and is
+  documented nowhere in AI-DevStatus.org or this file.
+- =bisos.dockerProc/AI-DevStatus.org= still advertises the *pre-rename*
+  Cmnd names (=containerProc_build=, =containerProc_composeUp=); that repo's
+  README.org has the new noun-consistent names. Stale in the handoff doc only.
+
+Model: claude-opus-5[1m] (Opus 5, 1M context). Pending user confirmation.
 ** -
 
 * Stage 1: Rename desktop to vnc and cleanup
@@ -76,40 +101,7 @@ Goal: Make sure that this having been copied from vagrant, is now clean and rena
 
 * Stage 1 TODOs
 ** +
-** DONE [#A] Identify all vagrant related relics. :aiAndMe:
-SCHEDULED: <2026-08-07 Fri 14:34>
-CLOSED: [2026-08-07 Thu]
-Delete or adapt them if applicable.
------ AI Results: ------
-Identified and deleted the following vagrant relics:
-- =debian/12/desktop/vagBox.cs= — misplaced copy from bro_vagrantDebianBaseBoxes; used bisos.vagrantBaseBoxes and referenced Packer/Vagrantfile artifacts not present here. Deleted.
-- =debian/13/desktop/vagBox.cs= — same file, same issue. Deleted.
-- =debian/12/desktop/xfce/bisos-fresh/privileged/= and =standard/= stub dirs — placeholder directories with empty READMEs, no Docker relevance. Deleted.
-Also cleaned up the FD2PanelUpdate relic in dockerConf/panel.desktop (from the upstream FarmData2 project) in both deb12 and deb13 — renamed to BisosVncPanelUpdate with a proper comment.
-** DONE [#A] Rename ./debian/12/desktop to be ./debian/12/vnc :aiAndMe:
-SCHEDULED: <2026-08-07 Fri 14:34>
-CLOSED: [2026-08-07 Thu]
-- Same for debian 13
-- Replace any text that was refering to {12,13}/desktop
------ AI Results: ------
-- Renamed =debian/12/desktop/= → =debian/12/vnc/= via =git mv= equivalent (filesystem rename).
-- Renamed =debian/13/desktop/= → =debian/13/vnc/= likewise.
-- Updated the docker-compose.yml service name from =desktop:= to =vnc:= in both deb12 and deb13 images.
-- Remaining occurrences of "desktop" in files are either: XFCE4 desktop environment terminology (correct), .desktop file extension (correct), docker-credential-desktop tool name (correct), or README files (rewritten in TODO 3). No path references to {12,13}/desktop remain.
-
-** DONE [#A] Update README.org to be for docker and not for vagrant :aiAndMe:
-SCHEDULED: <2026-08-07 Fri 14:34>
-CLOSED: [2026-08-07 Thu]
-Describe what this repo is all about.
------ AI Results: ------
-Rewrote =README.org= from scratch. The old content described bro_vagrantDebianBaseBoxes with Packer/QEMU/Vagrant concepts (preseed, vagrantfiles, poly hierarchy). The new README describes:
-- Repo purpose: BISOS Docker image specs with XFCE4/VNC/noVNC/SSH
-- Directory structure under =debian/{12,13}/vnc/xfce/=
-- Both Debian 12 and 13 image variants and their differences
-- Build (local and multi-arch), run, and connect instructions
-- How to install Raw-BISOS inside a container via =raw-bisos/=
-- Related resources (bxGenesis/start, bisos.dockerProc, TigerVNC, noVNC)
-
+** Archived. No longer relevant.
 ** -
 
 * Stage 2: Add confined/privileged hierarchy and privileged systemd containers
@@ -120,50 +112,7 @@ create privileged container variants with systemd as PID 1.
 
 * Stage 2 TODOs
 ** +
-** DONE [#A] Restructure directory hierarchy to confined/privileged :aiAndMe:
-SCHEDULED: <2026-08-07 Thu>
-CLOSED: [2026-08-07 Thu]
-Rename debian/{12,13}/vnc to debian/{12,13}/confined/vnc.
-Create debian/{12,13}/privileged/vnc placeholders.
------ AI Results: ------
-- Moved =debian/12/vnc/= → =debian/12/confined/vnc/=
-- Moved =debian/13/vnc/= → =debian/13/confined/vnc/=
-- Created =debian/12/privileged/vnc/= and =debian/13/privileged/vnc/=
-- Labels chosen: =confined= (unprivileged, seccomp constrained) and =privileged=
-  (full --privileged, systemd capable). Considered: safe, std, base, sandbox —
-  settled on confined/privileged as the most technically precise pair.
-
-** DONE [#A] Create privileged systemd container images for deb12 and deb13 :aiAndMe:
-SCHEDULED: <2026-08-07 Thu>
-CLOSED: [2026-08-07 Thu]
-Build on top of confined images. Full systemd as PID 1. VNC/noVNC/sshd as
-systemd units. Socket activation, timers, journald all functional.
------ AI Results: ------
-Created =debian/12/privileged/vnc/xfce/bisos_deb12-sysd/= and
-=debian/13/privileged/vnc/xfce/bisos_deb13-sysd/= each containing:
-- =Dockerfile= — FROM confined base image; installs systemd+dbus; removes
-  container-incompatible units (udev, getty, plymouth, rescue); installs and
-  enables vncserver/novnc/sshd-container systemd units; ENTRYPOINT=/sbin/init
-- =docker-compose.yml= — privileged: true, cgroupns: host, /sys/fs/cgroup rw,
-  /sys/fs/fuse, tmpfs for /tmp /run /run/lock /var/log/journal,
-  stop_signal: SIGRTMIN+3
-- =dockerConf/vncserver.service= — TigerVNC as systemd forking service
-- =dockerConf/novnc.service= — websockify after vncserver.service
-- =dockerConf/sshd-container.service= — sshd as simple service
-- =build.bash= — same multi-arch pattern as confined
-Port assignments: deb12-privileged SSH=2223 VNC=5902 noVNC=6902;
-                  deb13-privileged SSH=2224 VNC=5903 noVNC=6903.
-Requires Debian 12/13 host with cgroupv2 (cgroup2fs).
-
-** DONE [#A] Update README.org for confined/privileged structure :aiAndMe:
-SCHEDULED: <2026-08-07 Thu>
-CLOSED: [2026-08-07 Thu]
------ AI Results: ------
-Rewrote README.org to document the two-tier structure. Covers: confined vs
-privileged distinction, all four image paths with base image and init method,
-build order dependency (confined first), port assignment table for all four
-containers, connecting via VNC/noVNC/SSH, Raw-BISOS installation.
-
+** Archived. No longer relevant.
 ** -
 
 * Stage 3: Add rootless-sysd (Podman) variant
@@ -184,207 +133,6 @@ profile" axis. The three peers are named by property, not by tool:
 
 * Stage 3 TODOs
 ** +
-** DONE [#A] Scaffold rootless-sysd variant for deb12 and deb13 :aiAndMe:
-SCHEDULED: <2026-08-08 Sat>
-CLOSED: [2026-08-08 Sat]
-Add debian/{12,13}/rootless-sysd/vnc/xfce/bisos_deb{12,13}-rootless-sysd/.
-Adapt the sysd image to run under rootless Podman (drop --privileged and
-cgroup mounts; rely on Podman's native systemd integration).
------ AI Results: ------
-Created =debian/12/rootless-sysd/vnc/xfce/bisos_deb12-rootless-sysd/= and
-=debian/13/rootless-sysd/vnc/xfce/bisos_deb13-rootless-sysd/=, each containing:
-- =Dockerfile= — FROM confined base + USER root; build is identical to the
-  privileged sysd image (systemd/dbus install, unit suppression, enable
-  vncserver/novnc/sshd-container, ENTRYPOINT=/sbin/init). Difference is
-  runtime-only.
-- =run.bash= — =podman run --systemd=always= with NO --privileged, NO
-  /sys/fs/cgroup mount, NO cgroupns=host. Podman does cgroup delegation +
-  tmpfs plumbing itself, inside the user namespace.
-- =<name>.container= — Podman Quadlet unit for the per-engineer multi-tenant
-  model (systemctl --user manage + loginctl enable-linger).
-- =build.bash= — podman build (=-d= local) / podman manifest push (multi-arch).
-- =verify.sh= — same checks as the privileged verify.sh via =podman exec=,
-  plus an assertion that the container is genuinely rootless (not privileged,
-  launched by a non-root host UID).
-- =dockerConf/{vncserver,novnc,sshd-container}.service= — copied verbatim from
-  the privileged variant (engine-agnostic).
-Port assignments: deb12-rootless SSH=2225 VNC=5904 noVNC=6904;
-                  deb13-rootless SSH=2226 VNC=5905 noVNC=6905.
-
-** DONE [#A] Build, run and verify rootless-sysd on a Podman host :aiAndMe:
-SCHEDULED: <2026-08-08 Sat>
-CLOSED: [2026-08-09 Sun]
-Verify build/run/verify on a rootless Podman + cgroup v2 host.
------ AI Results: ------
-*deb13 rootless-sysd built, run, and VERIFIED* on a Debian 12 host
-(Podman 4.3.1, crun, cgroup v2). =verify.sh= = all PASS: systemd is PID 1,
-all three services active, rootless (non-privileged, non-root host UID),
-ports 2226/5905/6905 listening, noVNC HTTP responds, reachable via SSH & VNC.
-
-The bring-up surfaced a chain of issues (all resolved; details in Stage 4
-below and in the README "Host OS / Podman Version" section):
-1. Base image absent from podman's store → build.bash now auto-builds the
-   confined base (local-only; separate docker/podman stores).
-2. Build failed with =sd-bus ... Input/output error= (buildah per-RUN scope on
-   old Podman) → build.bash uses =--isolation=chroot=.
-3. Build ran only in a real user *login* session (not =su=), which needs
-   XDG_RUNTIME_DIR + user D-Bus + linger.
-4. Build filled =/= (96%); podman graphroot was on the full root fs →
-   relocated graphroot to a large local disk via storage.conf.
-5. =podman exec= into the systemd container fails on old Podman
-   (nested =cgroup.procs= permission) → verify.sh rewritten to be *exec-free*
-   (host-side checks + SSH). NB: keep =cgroup_manager = systemd=; the cgroupfs
-   experiment made the container fail to boot.
-6. systemd reported =degraded= due to =polkit.service= → polkit masked in all
-   four sysd Dockerfiles.
-
-Still untested: deb12 rootless-sysd (same pattern, high confidence); the
-Quadlet per-engineer path under =systemctl --user= (linger now enabled).
-
-** DONE [#B] Update README.org and AI-DevStatus.org for the three-peer model :ai:
-SCHEDULED: <2026-08-08 Sat>
-CLOSED: [2026-08-08 Sat]
-Document rootless-sysd as the third init/isolation profile alongside
-confined and privileged. Update the port table (add 2225/5904/6904 and
-2226/5905/6905) and the architecture section.
------ AI Results: ------
-README.org: reframed the intro to the three-peer init/isolation profile axis;
-added a Rootless-sysd images subsection, a "Host Compatibility (cgroup v1 vs
-v2)" section with the decision matrix, the =docker-compose.cgv1.yml= overlay,
-rootless build/run examples, the six-row port table (added rootless
-2225/5904/6904 and 2226/5905/6905), updated the structure table (engine/posture
-column) and key-files table (run.bash, *.container, verify.sh, cgv1 overlay),
-and refreshed the TOC.
-AI-DevStatus.org: rewrote Current State (deb13 privileged verified this
-session; rootless/cgv1 untested), added rootless-sysd + cgroup v1/v2 sections
-to Architecture, updated the key-files table, What Works / What Is Untested,
-and Key Design Decisions (recorded the two build fixes: =USER root= and the
-=cgroupns: host= → =cgroup: host= correction, plus the rootless-sysd rationale
-and the v1 overlay).
-
-** DONE [#B] .spcs commands: full noun-consistent rename to image/instance :aiAndMe:
-SCHEDULED: <2026-08-11 Tue>
-CLOSED: [2026-08-11 Tue]
-_Code owner: =bisos.dockerProc/py3/bisos/dockerProc/containerProc_csu.py=_
-
-The current Cmnd surface conflates "image" (what =build= produces) and
-"instance" (what =compose up= or =run= creates). Rename all Cmnds to
-carry an explicit noun prefix. New surface:
-
-| Section  | Cmnd                          | Old name (if any)      | Purpose                                       |
-|----------+-------------------------------+------------------------+-----------------------------------------------|
-| Image    | =containerProc_imageBuild=    | =containerProc_build=  | docker/podman build (--noCache flag preserved) |
-| Image    | =containerProc_imageDelete=   | (new)                  | docker/podman rmi (image only, no instance)   |
-| Instance | =containerProc_instanceUp=    | =containerProc_composeUp= (docker) / =containerProc_run= (podman) | Create + start instance |
-| Instance | =containerProc_instanceDown=  | =containerProc_composeDown= | Stop instance (does NOT remove)         |
-| Instance | =containerProc_instanceDelete= | (new)                 | Stop + rm instance (image kept)               |
-| Instance | =containerProc_instanceVerify= | =containerProc_verify= | Host-side + SSH readiness checks             |
-| Instance | =containerProc_instanceStatus= | =containerProc_status= | engine inspect + SSH systemd status          |
-| Instance | =containerProc_instancePs=    | (new)                  | =docker/podman ps -a= grepped for this leaf's container |
-| Instance | =containerProc_instanceLogs=  | (new)                  | =docker/podman logs= (=-f= for follow)        |
-| Instance | =containerProc_instanceExec=  | (new)                  | Open shell in running instance                |
-| Instance | =containerProc_instanceRestart= | (new)                | Stop + start (in-place restart)               |
-| Combined | =containerProc_fullClean=     | =containerProc_clean=  | =imageDelete= + =instanceDelete= (comment says so) |
-
-Notes:
-- =instanceUp= collapses =composeUp= and =run= into one Cmnd. The Cmnd
-  body dispatches on =p.engine=: docker → =docker compose up -d=;
-  podman → =podman run --systemd=always=. Same for =instanceDown= vs
-  =docker compose down= / =podman stop=.
-- All =instance*= Cmnds anticipate the Stage 4 Platform Registrar work
-  in =bisos.dockerProc=: they will later gain an =--instance=N= arg
-  (default =instance0=). Naming leaves room; no per-instance logic yet.
-- Existing =examples_csu()= entries updated to use the new names.
-- Keep the old class names as thin =DeprecationWarning=-emitting
-  aliases for one release, so already-planted =.spcs= files that use
-  the old names via the CLI don't break silently.
------ AI Results: ------
-Implemented in =bisos.dockerProc/py3/bisos/dockerProc/containerProc_csu.py=.
-Renames complete: 5 renames + 5 new Cmnds + 1 combined = 12 total. New
-Cmnds: =containerProc_imageBuild=, =containerProc_imageDelete=,
-=containerProc_instanceUp=, =containerProc_instanceDown=,
-=containerProc_instanceDelete=, =containerProc_instanceRestart=,
-=containerProc_instancePs=, =containerProc_instanceLogs=,
-=containerProc_instanceExec=, =containerProc_instanceVerify=,
-=containerProc_instanceStatus=, =containerProc_fullClean=. =instanceUp=
-and =instanceDown= dispatch on =p.engine= internally (docker →
-=docker compose=, podman → =podman run/stop=). Deprecation aliases
-in place for all 7 old names (=containerProc_build=, etc.) --- these
-emit =DeprecationWarning= and delegate to the new class. Verified with
-smoke test in =py3/tests/verify.sh= (12/12 new + 7/7 old + params
-function all PASS).
-
-** DONE [#B] .spcs examples menu: filter by =p.engine= and =p.profile= :aiAndMe:
-SCHEDULED: <2026-08-11 Tue>
-CLOSED: [2026-08-11 Tue]
-_Code owner: =bisos.dockerProc/py3/bisos/dockerProc/containerProc_csu.py=_
-
-Depends on the rename TODO above (uses the new noun-consistent names).
-
-Today =examples_csu()= shows every command including ones that don't
-apply to the current leaf. On a =rootless-sysd= leaf, users still see
-=containerProc_composeUp= (docker-only); on a docker leaf, they see
-=containerProc_run --detach= (podman-only). Should hide the inapplicable
-side.
-
-Concrete filtering (pure function of =p=):
-- =p.engine == Docker=  → show =instanceUp=/=instanceDown= only, hide podman-specific flags.
-- =p.engine == Podman= → show =instanceUp= (with =--detach=) only, no =composeUp=/=composeDown= at all.
-- =p.profile == Confined= → hide any =systemd=-specific options in help text.
-- =p.cgroupVariants= includes only =V2= → hide =--cgroupVer="v1"= option.
-
-Implementation: replace the current sequential =cmnd(...)= calls in
-=examples_csu()= with a conditional structure that reads =p= first
-(via =paramsFromPlantPath()=), then emits only the relevant menu
-chapters and options.
-
-Not in scope for this TODO: host-identity awareness (=c1= vs =c2=). See
-=hostFacts TODO= below.
------ AI Results: ------
-=examples_csu()= rewritten. Reads =p= via =paramsFromPlantPath()= first;
-on docker leaves shows only docker-side (=instanceUp= with =--cgroupVer=v1=
-alternative when =p.cgroupVariants= includes V1); on podman leaves shows
-only =instanceUp --detach=true=. Suggests =ssh -p <sshPort>= as the
-preferred alternative on rootless-sysd leaves (podman exec unreliable on
-old Podman). If no planted context, falls back to =_examplesUnfiltered()=
-which shows the full surface. Verified live on both a deb13 rootless-sysd
-leaf (podman-only surface, no --cgroupVer flag since v1 unsupported) and
-a deb13 privileged leaf (docker surface with --cgroupVer=v1 shown since
-this profile supports both v1 and v2).
-
-** DONE [#B] Implement new instance-lifecycle Cmnds (ps, logs, exec, restart) :ai:
-SCHEDULED: <2026-08-11 Tue>
-CLOSED: [2026-08-11 Tue]
-_Code owner: =bisos.dockerProc/py3/bisos/dockerProc/containerProc_csu.py=_
-
-Depends on the rename TODO above.
-
-Each new Cmnd is a thin wrapper over =_run([engine, <subcmd>, ...])=:
-
-| Cmnd                            | Body                                                                             |
-|---------------------------------+----------------------------------------------------------------------------------|
-| =containerProc_instancePs=      | =_run([engine, 'ps', '-a', '--filter', f'name={p.imageName}'])=                  |
-| =containerProc_instanceLogs=    | =_run([engine, 'logs'] + (['-f'] if follow else []) + [p.imageName])=            |
-| =containerProc_instanceExec=    | =_run([engine, 'exec', '-it', p.imageName, cmd or 'bash'])=                      |
-| =containerProc_instanceRestart= | =_run([engine, 'restart', p.imageName])=                                         |
-| =containerProc_imageDelete=     | =_run([engine, 'rmi', p.imageName], check=False)=                                |
-| =containerProc_instanceDelete=  | stop + rm sequence; =_run([engine, 'stop', p.imageName], check=False)=; then rm  |
-
-CS param additions (register in =commonParamsSpecify=):
-- =follow= --- truthy string, for =instanceLogs=.
-- =cmd= --- string, optional, for =instanceExec= (default =bash=).
-
-Add smoke tests to =py3/tests/verify.sh= — each new Cmnd invoked with
-no args should return help/exit cleanly, not crash.
------ AI Results: ------
-All 4 new instance Cmnds implemented as thin =_run= wrappers, plus
-=instanceDelete= (stop+rm on podman; =docker compose down= on docker),
-=imageDelete= (rmi), and =fullClean= (stop+rm+rmi). Two new CS params
-registered in =commonParamsSpecify=: =follow= (for =instanceLogs= =-f=)
-and =execCmd= (for =instanceExec=, default =bash=). Smoke test added
-to =py3/tests/verify.sh= checking presence of all 12 new Cmnds + 7
-deprecated aliases + =commonParamsSpecify= --- all PASS.
-
 ** TODO [#C] hostFacts: examples menu also aware of host identity/capability :aiAndMe:
 SCHEDULED: <2026-08-11 Tue>
 _Code owner: =bisos.dockerProc/py3/bisos/dockerProc/= (new module =hostFacts.py=)_
@@ -411,80 +159,6 @@ Naturally couples to the Stage 4 Platform Registrar (dockerProc Stage
 grows a sibling per-host branch at
 =/bisos/platform/dockerProc/hostFacts/<hostname>/fps/=.
 ----- AI Results: ------
-
-** DONE [#C] Document image-vs-instance model in README.org :ai:
-SCHEDULED: <2026-08-11 Tue>
-CLOSED: [2026-08-11 Tue]
-_Code owner: =bisos.dockerProc/README.org= AND =bro_dockerfiles/README.org=_
-
-Depends on all TODOs above being complete.
-
-Once the rename lands, update both READMEs:
-
-- =bisos.dockerProc/README.org=: the =Usage= section currently lists
-  seven commands as a flat table (=build=, =composeUp=, ...); replace
-  with two subsections =Image Commands= and =Instance Commands=, plus
-  a =fullClean= note. Update the =.spcs Path: Same Result via
-  bisos.dockerProc= subsection to use the new names.
-- =bro_dockerfiles/README.org=: the =Building= section shows
-  =dockerProc.spcs -i containerProc_build=; rename to
-  =containerProc_imageBuild=. The example flows shown in the ".spcs
-  Path: Same Result via bisos.dockerProc" subsection likewise.
------ AI Results: ------
-=bisos.dockerProc/README.org=: rewrote =The Seed Commands= section as
-four grouped tables (Image, Instance, Verify+Status, Combined) with
-the new noun-consistent names; updated all example command flows to
-use =containerProc_imageBuild=/=containerProc_instanceUp=/etc.; added
-a note about deprecated old names still working with warning; updated
-TOC anchor + Key Files reference. =bro_dockerfiles/README.org=:
-updated the "Two Build Paths" section (=.spcs= path bullet) and all
-three per-profile examples under "=.spcs= Path: Same Result via
-bisos.dockerProc" subsection to use the new names; added a summary
-paragraph listing the three noun-prefix groups. Also regenerated
-=bro_dockerfiles/figures/repoStructureAtAGlance.png= — the .spcs path
-box label now shows =containerProc_imageBuild= / =containerProc_instanceUp=
-/ =containerProc_instanceVerify= / =containerProc_fullClean= instead
-of the old names.
-
-** DONE [#B] The <<availability of raw-bisos directory>> in results of all containers  :aiAndMe:
-SCHEDULED: <2026-08-08 Sat>
-CLOSED: [2026-08-11 Tue]
-The usual step after brining up the container is to go in ~/raw-bisos directory and
-run the install script. But this is not happening for all of them.
-The compose  script is using  relative path is that mandatory, or can we use absolute path?
-What if we were to create a /bisos/git/bxRepos/bxObjects/bro_dockerfiles/common/raw-bisos
-and use that for mounting at ~/raw-bisos.
------ AI Results: ------
-Resolved by *baking the payload into the confined image* (no mount) with a
-single canonical source at =bro_dockerfiles/common/raw-bisos/=. Structure
-now:
-- =common/raw-bisos/= (canonical single source): 4 files ---
-  =installRawBisos.sh=, =postRawBisos.sh=, =raw-bisos.sh=, =README.org=.
-  Merged best-of-both from the two former divergent copies (deb12
-  README + =bash ./raw-bisos.sh= + =/shuttle/this chown= line).
-  Deleted a stray recursive =raw-bisos → /shuttle/this/raw-bisos= symlink
-  that was inside the old deb12 copy.
-- =debian/{12,13}/confined/vnc/xfce/bisos_deb*-fresh/raw-bisos= --- now a
-  symlink to =../../../../../../common/raw-bisos= (6 levels up). Docker
-  =COPY= follows the symlink, so both confined Dockerfiles now =COPY
-  ./raw-bisos /home/$USERNAME/raw-bisos= + =RUN chmod +x= to bake the
-  payload into the image at =~/raw-bisos=.
-- =docker-compose.yml= × 4 + =docker-compose.cgv1.yml= × 2 (all 6 compose
-  files): removed the =../../../../confined/.../raw-bisos:/home/bystar/raw-bisos=
-  mount line + its two comment lines. No mount needed --- payload is in
-  the image.
-- =run.bash= × 2 (rootless-sysd): removed the =RAWBISOS=$(cd ...)= path
-  computation and the conditional =${RAWBISOS:+-v ...}= mount line.
-  Replaced with a one-line note.
-- Privileged and rootless-sysd variants inherit =~/raw-bisos= via
-  =FROM= the confined image --- no per-variant changes needed. This is
-  the elegant side effect of the existing FROM chain.
-- =README.org=: rewrote "Installing Raw-BISOS Inside a Container" section
-  to reflect the new "baked in, no mount" reality; added an "Updating
-  the payload" note explaining the single canonical source. Also
-  updated the =raw-bisos/= entry in the "Each image directory contains"
-  table to describe it as a symlink.
-
 
 ** -
 
@@ -555,167 +229,148 @@ Key facts established:
 
 * Stage 4 TODOs
 ** +
-** DONE [#A] Scaffold the cgroup-v1 privileged compose overlay :aiAndMe:
-SCHEDULED: <2026-08-08 Sat>
-CLOSED: [2026-08-08 Sat]
-Provide a working systemd option for cgroup-v1 hosts (no reboot needed),
-alongside the existing v2 docker-compose.yml.
------ AI Results: ------
-Added =docker-compose.cgv1.yml= to both privileged sysd image dirs
-(=debian/12/privileged/vnc/xfce/bisos_deb12-sysd/= and the deb13 equivalent):
-- Same image/build/ports as docker-compose.yml.
-- Removes =cgroup: host= (unsupported on v1).
-- Mounts =/sys/fs/cgroup:ro= + =/sys/fs/cgroup/systemd:rw= (classic v1 recipe)
-  instead of the v2 single =/sys/fs/cgroup:rw= mount.
-- Distinct container_name (=mb-deb{12,13}-sysd-xfce-cgv1=) so it never clashes
-  with the v2 container; tmpfs and stop_signal unchanged.
-Run with: =docker compose -f docker-compose.cgv1.yml up -d= then
-=./verify.sh mb-deb13-sysd-xfce-cgv1 2224 5903 6903= (deb12: cgv1 2223 5902 6902).
-
-** DONE [#A] Verify the v1 overlay on a cgroup-v1 host :aiAndMe:
-SCHEDULED: <2026-08-08 Sat>
-CLOSED: [2026-08-09 Sun]
-Untested. On a cgroup-v1 host (e.g. the RHEL 8.10 work host, once
-=--privileged= is confirmed permitted), verify systemd boots and all three
-services come up via the v1 overlay, using =verify.sh= with the =-cgv1=
-container name and privileged ports.
------ AI Results: ------
-*deb13 privileged sysd on RHEL 8.10 (cgroup v1): VERIFIED.* All 11 checks
-pass: container running, systemd is PID 1, system state =running= (not
-degraded), all three services active (vncserver/novnc/sshd-container),
-journald boot log present, host ports 2224/5903/6903 listening, noVNC HTTP
-responds.
-
-One extra step required: the host had exhausted Docker's default bridge pool
-(172.17--172.31 and 192.168.0/16 all allocated across 30+ existing networks).
-Fixed by adding an explicit =networks:= block with =subnet: 10.254.13.0/24=
-to =docker-compose.cgv1.yml=. This subnet is clear on this host; adjust if
-needed on other hosts (inspect with =docker network inspect $(docker network
-ls -q --filter driver=bridge) --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}'=).
-
-The cgroup-v1 privileged overlay is now end-to-end confirmed on a production
-RHEL 8.10 host. The classic recipe works: =--privileged=, =/sys/fs/cgroup:ro=
-+ =/sys/fs/cgroup/systemd:rw=, no =cgroup: host=.
-
-** DONE [#B] Fix confined build.bash tags; document local-only + separate stores :aiAndMe:
-SCHEDULED: <2026-08-08 Sat>
-CLOSED: [2026-08-08 Sat]
-Surfaced while resolving why the confined base image was absent from Podman's
-store. Add a hostPodmanVerify.sh for the rootless-sysd host prerequisite check.
------ AI Results: ------
-- Fixed both confined =build.bash= files, which carried stale deb12 values
-  (=IMAGE="novnc-xfce-deb12" TAG="1.2.2"=) that did not match their
-  docker-compose.yml image tags. Now: deb13 = =deb13-fresh-vnc-xfce:4=,
-  deb12 = =deb12-fresh-vnc-xfce:1.21=. The base image had therefore been built
-  via =compose build= / manual =build -t=, never via its own build.bash.
-- Added =hostPodmanVerify.sh= (initially in the deb13 rootless-sysd dir).
-- README.org Building section: documented the *local-only* workflow (always
-  =build.bash -d=; DockerHub push path not intended here) and the
-  *docker/podman separate image stores* gotcha (OCI format identical, but
-  =/var/lib/docker= vs =~/.local/share/containers/storage= are not shared;
-  build each variant with the engine that runs it, or move via
-  =docker save | podman load=).
-- Confirmed on the current rootless host: hostPodmanVerify.sh returns GO
-  (5 pass, 2 warn: =io= controller not delegated (non-blocking), base image not
-  yet in podman's store).
-
-** DONE [#A] build.bash auto-resolves base; relocate host check to dockerProc :aiAndMe:
-SCHEDULED: <2026-08-08 Sat>
-CLOSED: [2026-08-08 Sat]
-Two refinements driven by an actual build failure.
------ AI Results: ------
-- *build.bash auto-base:* both rootless-sysd =build.bash= files now check
-  =podman image exists $BASE_IMAGE= and, if missing, build the confined base
-  from =$BASE_CONTEXT= (=../../../../confined/vnc/xfce/bisos_deb{12,13}-fresh=)
-  before building the image --- so =build.bash -d= is self-contained
-  (local-only; the base is never pulled). deb13 base =bisos/deb13-fresh-vnc-xfce:4=,
-  deb12 base =bisos/deb12-fresh-vnc-xfce:1.21=.
-- *Session diagnostics:* the confined base build failed under rootless Podman
-  with =sd-bus call ... org.freedesktop.systemd1 ... Input/output error= ---
-  crun's systemd cgroup manager needs a reachable user systemd/D-Bus session,
-  which a bare cgroup check misses (e.g. when you =su= in). Added checks for
-  =XDG_RUNTIME_DIR=, =systemctl --user= reachability, and linger; the two
-  session checks are FAIL when the cgroup manager is =systemd=, WARN otherwise.
-  Fixes: log in directly (not =su=) + =loginctl enable-linger=, or build with
-  =podman --cgroup-manager=cgroupfs=.
-- *Relocation (separation of concerns):* =hostPodmanVerify.sh= is HOST-scoped,
-  not image-scoped, so it moved to
-  =/bisos/git/auth/bxRepos/bisos-pip/dockerProc/py3/bin/hostPodmanVerify.sh=
-  (next to =dockerProc-sbom.cs=), and the per-image copy was deleted. The
-  image-scoped base-image-presence check (and the base-image arg) were dropped
-  from it --- that concern lives in each image's =build.bash=/=verify.sh=.
-  (Larger bisos.dockerProc plans deferred by the developer.)
-
-** DONE [#A] Finalize rootless-sysd: chroot build, exec-free verify, polkit, docs :aiAndMe:
-SCHEDULED: <2026-08-09 Sun>
-CLOSED: [2026-08-09 Sun]
-The remaining fixes from the deb13 bring-up, plus the Debian 12-vs-13 doc.
------ AI Results: ------
-- *build.bash --isolation=chroot:* both rootless-sysd build.bash files pass
-  =--isolation=chroot= on every podman build (base + image + multi-arch) to
-  avoid the buildah per-RUN =sd-bus= failure on old Podman. Runtime unchanged
-  (systemd cgroup manager kept).
-- *verify.sh rewritten exec-free:* both rootless-sysd verify.sh now avoid
-  =podman exec= (broken on Podman 4.3.1 for systemd containers). They use
-  podman inspect + host ports + noVNC HTTP, then an SSH session (sshpass or
-  key) for =systemd is PID 1= / service =is-active= / =is-system-running=.
-  =degraded= is WARN (gates on the three services being active), not FAIL.
-- *polkit masked:* =RUN systemctl mask polkit.service= added to all four sysd
-  Dockerfiles (privileged + rootless-sysd, deb12/deb13) so systemd reports
-  =running= not =degraded=; polkit is unusable in a container and nothing here
-  needs it (sudo is passwordless).
-- *hostPodmanVerify.sh graphroot check:* added check #8 --- FAIL if graphroot
-  is on NFS or its filesystem is >=95% full/<3G free, WARN at >=90%.
-- *README:* added "Host OS / Podman Version for rootless-sysd (Debian 12 vs
-  13)" --- Debian 12 (Podman 4.3.1) needs the chroot + exec-free-verify
-  accommodations (kept for portability); Debian 13 (Podman 5.4.2) fixes both;
-  version-independent requirements (cgroup v2, login session + linger,
-  graphroot on local disk, polkit masked) listed.
-- *AI-DevStatus.org:* updated to reflect deb13 rootless-sysd verified and the
-  host-version considerations.
-
+** Archived. No longer relevant. (Reference subsections above are retained.)
 ** -
 
 
-* Stage 5: containerProc spcs framework (implemented in bisos.dockerProc)
+* Stage 5: Two peer paths --- standalone bash and =.spcs= (bisos.dockerProc)
 
-Goal: Replace the per-leaf bash scripts with =dockerProc.spcs= / =podmanProc.spcs=
-planted in each leaf, backed by =containerProc-seed.cs= in =bisos.dockerProc=.
+Goal: Maintain *both* per-leaf paths as permanent peers, at parity with each
+other.
 
-Implementation is tracked in the =bisos.dockerProc= repo:
+- The *=.spcs= path* --- =dockerProc.spcs= / =podmanProc.spcs= planted in each
+  leaf, backed by =containerProc-seed.cs= in =bisos.dockerProc=. Framework
+  driven, path-derived parameters, the everyday path *where BISOS is
+  installed*.
+- The *standalone bash path* --- the per-leaf =build.bash= / =run.bash= /
+  =verify.sh= / =docker-compose*.yml=. Self-contained: no BISOS, no pip
+  install, nothing but docker/podman required.
+
+*The bash path is not redundant and is not going away.* It is what works on
+hosts that do not have BISOS --- concretely the *old RedHat VMs*, where
+=pipx install bisos.dockerProc= is not available and the =.spcs= path
+therefore cannot run at all. Those hosts still need to build and run these
+images. Keeping =bro_dockerfiles= usable on its own is a requirement, not a
+transitional convenience.
+
+Implementation of the =.spcs= side is tracked in the =bisos.dockerProc= repo:
 =@/bisos/git/auth/bxRepos/bisos-pip/dockerProc/AI-WorkPlan.org=
 
-** What replaces what
+** Peer equivalence --- bash path and =.spcs= path
 
-| Current per-leaf file       | Replaced by                                            |
-|-----------------------------+--------------------------------------------------------|
-| =build.bash=                | =dockerProc.spcs= / =podmanProc.spcs -i build=         |
-| =docker-compose.yml=        | =dockerProc.spcs -i composeUp= / =composeDown=         |
-| =docker-compose.cgv1.yml=   | =dockerProc.spcs -i composeUp --cgroupVer=v1=          |
-| =run.bash= (rootless-sysd)  | =podmanProc.spcs -i run=                               |
-| =verify.sh=                 | =dockerProc.spcs= / =podmanProc.spcs -i verify=        |
+Neither column replaces the other. Each row is the *same operation* expressed
+in the two paths; parity between the columns is the thing to preserve.
+
+| Standalone bash (no BISOS)  | =.spcs= (requires =bisos.dockerProc=)                      |
+|-----------------------------+------------------------------------------------------------|
+| =build.bash=                | =containerProc_imageBuild=                                 |
+| =docker-compose.yml=        | =containerProc_instanceUp= / =containerProc_instanceDown=  |
+| =docker-compose.cgv1.yml=   | =containerProc_instanceUp --cgroupVer=v1=                  |
+| =run.bash= (rootless-sysd)  | =containerProc_instanceUp= (=podman run --systemd=always=) |
+| =verify.sh=                 | =containerProc_instanceVerify=                             |
 
 =dockerConf/= assets (Dockerfiles, systemd units, entrypoint.sh, xstartup)
-remain in each leaf --- they are image-specific content, not logic.
+remain in each leaf --- they are image-specific content, not logic, and are
+shared by both paths.
 
 * Stage 5 TODOs
 ** +
-** DONE [#B] Plant dockerProc.spcs / podmanProc.spcs in all six leaf directories :aiAndMe:
-SCHEDULED: <2026-08-10 Sun>
-CLOSED: [2026-08-10 Sun]
-Once =bisos.dockerProc= Stage 1 is complete, plant =dockerProc.spcs= in the
-four docker leaves and =podmanProc.spcs= in the two rootless-sysd leaves.
-Verify each resolves its seed and derives correct parameters for that leaf.
+** DONE [#A] Cleanups of README.org etc based on permanence of build.bash :aiAndMe:
+CLOSED: [2026-09-03 Thu 14:46] SCHEDULED: <2026-09-03 Thu>
 ----- AI Results: ------
-=dockerProc.spcs= planted in 4 docker leaves (deb12/13 × confined/privileged).
-=podmanProc.spcs= planted in 2 rootless-sysd leaves (deb12/13). All 6/6 path
-derivations verified programmatically — correct profile, engine, ports, imageName.
-** TODO [#B] Retire per-leaf bash scripts once spcs is verified :aiAndMe:
-SCHEDULED: <2026-08-10 Sun>
-Remove =build.bash=, =verify.sh=, =run.bash=, =docker-compose.yml=,
-=docker-compose.cgv1.yml= from each leaf once the spcs equivalents are
-verified end-to-end. Update README.org and AI-DevStatus.org.
+README.org, AI-DevStatus.org and the
+  =figures/broDockerfiles-graphviz.pcs= figure (plus its regenerated
+  =repoStructureAtAGlance.png=) now describe the bash path as the standalone,
+  no-BISOS peer of the =.spcs= path.
+
+** TODO [#B] <<BashPathParity>> Update the 8 standalone bash scripts :aiAndMe:
+SCHEDULED:  <2026-09-03 Thu 14:49>
+The per-leaf bash scripts are *required*, and are a permanent peer of the
+=.spcs= path. The =.spcs= path needs =bisos.dockerProc= installed; on the *old
+RedHat VMs* BISOS cannot be installed at all, so these self-contained scripts
+are the only way to build and run these images there. They are therefore
+maintained at parity with the =.spcs= path --- not redundant with it, and not
+superseded by it.
+
+The 8 files in question:
+
+: ./debian/13/rootless-sysd/vnc/xfce/bisos_deb13-rootless-sysd/build.bash
+: ./debian/13/privileged/vnc/xfce/bisos_deb13-sysd/build.bash
+: ./debian/13/confined/vnc/xfce/bisos_deb13-fresh/build.bash
+: ./debian/12/rootless-sysd/vnc/xfce/bisos_deb12-rootless-sysd/build.bash
+: ./debian/12/privileged/vnc/xfce/bisos_deb12-sysd/build.bash
+: ./debian/12/confined/vnc/xfce/bisos_deb12-fresh/build.bash
+: ./debian/13/rootless-sysd/vnc/xfce/bisos_deb13-rootless-sysd/run.bash
+: ./debian/12/rootless-sysd/vnc/xfce/bisos_deb12-rootless-sysd/run.bash
+
+(=verify.sh=, =docker-compose.yml= and =docker-compose.cgv1.yml= belong to the
+same standalone path and are maintained on the same basis.)
+
+Work to do:
+- Bring these 8 up to date so the bash path stays at parity with the =.spcs=
+  path --- same image names and tags, same host ports, same build flags
+  (=-d= local, =-n= =--no-cache=, =--isolation=chroot= for rootless podman),
+  same run posture (=--privileged= + cgroup mounts for privileged;
+  =--systemd=always= for rootless-sysd).
+- For all build.bash make -d default.  Add -u for upload.
+- The cp in ./debian/13/confined/vnc/xfce/bisos_deb13-fresh/build.bash should also happen in ./debain/12
+- The image names in the bash files should be same as those in .spcs
 ----- AI Results: ------
+Edits done [2026-09-03 Thu]; *not yet run against a docker/podman daemon*
+(authored inside a container --- see the =:me:= verification TODO below).
+
+*Decisions taken (user):* (a) dual naming --- build.bash always tags the
+=.spcs= name locally, and =-u= additionally tags+pushes the DockerHub name;
+(b) =cp -r= is the canonical raw-bisos mechanism, not a symlink.
+*Constraint (user):* the old RedHat VMs cannot run podman, so the two
+rootless-sysd leaves are off the critical path. The four *docker* leaves
+(deb12/13 × confined/privileged) are what the standalone path is for.
+
+*The bash path was broken end-to-end before this.* The Dockerfiles and compose
+files had already migrated to =.spcs= naming (=bisos_deb13-fresh:latest=) while
+build.bash still tagged =bisos/deb13-fresh-vnc-xfce:4=. So confined build.bash
+produced a name nothing referenced, and the sysd leaves' =FROM= could never
+resolve. Fixing the names is what makes the path work --- it was not cosmetic.
+
+Per-file changes (all 8):
+- *Flags, all 6 build.bash*: local build is now the DEFAULT; =-u= uploads;
+  =-n= is =--no-cache= (was privileged-only, now on all six for parity);
+  =-d= still accepted as a no-op so existing docs/muscle memory keep working.
+  Replaced the broken one-shot =getopts 'd' opt= idiom (which errored on unset
+  =$opt=) with a =while getopts 'und'= loop. Parsing verified for
+  ='' / -n / -u / '-u -n' / -d=.
+- *Names, all 8*: =LOCAL_IMAGE:LOCAL_TAG= now equals =paramsFromPlantPath()='s
+  =imageName:latest= in every leaf; DockerHub vars kept but used only by =-u=.
+  Both =run.bash= =IMAGE= likewise. Verified bash == Dockerfile =FROM= ==
+  compose =image:= across all six leaves.
+- *raw-bisos*: the =cp= block added to deb12 confined (it was missing, so that
+  leaf could not build at all). Made *idempotent* in both confined leaves and
+  in the rootless base-build block --- plain =cp -r <dir> .= nests into
+  =./raw-bisos/raw-bisos= on a repeat build, a latent bug in the original
+  deb13 script; now =rm -rf ./raw-bisos= then =cp -r <src> ./raw-bisos=.
+  Dropped the now-meaningless "NOT rm -r -f" trailer.
+- *Base-image guard*: both privileged build.bash now fail fast with the exact
+  =( cd <confined leaf> && ./build.bash )= command when the =FROM= base is
+  absent, instead of a raw docker error.
+- *Dockerfile comments*: both confined Dockerfiles said the =raw-bisos= context
+  entry "is a symlink"; it is a =cp=. Corrected.
+- All 8 pass =bash -n=.
+
+*Blocker found, NOT fixed here (belongs to bisos.dockerProc):* the =.spcs=
+path does no raw-bisos copy at all, and the symlink its Dockerfiles used to
+assume is absent and untracked in git. So =containerProc_imageBuild= cannot
+build either confined leaf today. =containerProc_imageBuild= needs the same
+pre-build copy step. Until then the bash path is the *only* working way to
+build the confined images --- on any host, not just RedHat.
+
+** TODO [#B]  Verify them on an old RedHat VM (no BISOS) :me:
+SCHEDULED:<2026-09-03 Thu 14:49>
+Verify them on an old RedHat VM (no BISOS), which is their actual target
+  environment --- not just on a Debian BISOS host, where the =.spcs= path is
+  also available and can mask a broken bash path.
+----- AI Results: ------
+
+
 ** -
 
 
