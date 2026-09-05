@@ -1,15 +1,23 @@
 [Unit]
 Description=OpenSSH Server (container)
-After=network.target dbus.service
+After=sysinit.target systemd-tmpfiles-setup.service network.target dbus.service
+Wants=network.target
 
 [Service]
 Type=simple
+# RuntimeDirectory has systemd create /run/sshd itself, atomically, right
+# before ExecStart on *every* start --- unlike a separate ExecStartPre mkdir,
+# it cannot lose a race with /run's tmpfs being (re)populated during early
+# boot. That race was the cause of thousands of failed restarts before the
+# service happened to win the race and stay up.
+RuntimeDirectory=sshd
+RuntimeDirectoryMode=0755
 ExecStartPre=/usr/sbin/sshd -t
 ExecStart=/usr/sbin/sshd -D
 ExecReload=/bin/kill -HUP $MAINPID
 
 Restart=on-failure
-RestartSec=5
+RestartSec=2
 
 [Install]
 WantedBy=multi-user.target
