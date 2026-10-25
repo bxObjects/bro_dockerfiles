@@ -1,19 +1,58 @@
 #!/bin/bash
 #
-# Build the deb13 privileged (bisos_deb13-sysd) image with docker.
+# imageBuild.sh --- Build the deb13 privileged (bisos_deb13-sysd) image with docker.
 #
 # STANDALONE PATH. This script needs nothing but docker --- no BISOS, no pip
 # install. It is the only way to build this image on hosts where
 # bisos.dockerProc cannot be installed (notably the old RedHat VMs). It is a
 # permanent peer of ./dockerProc.spcs, not a legacy alternative, and the two
 # must be kept at parity. See <<BashPathParity>> in ../../../../../../AI-WorkPlan.org
+# Its companion for running the image is ./containerManage.sh (see ./README.org).
 #
 # Usage:
-#   ./build.bash            # local build (DEFAULT)
-#   ./build.bash -n         # local build, bypass the layer cache
-#   ./build.bash -u         # local build, then also push the DockerHub image
-#   ./build.bash -u -n      # push, bypassing the layer cache
-#   ./build.bash -d         # accepted, no-op --- local is the default now
+#   ./imageBuild.sh            # local build (DEFAULT)
+#   ./imageBuild.sh -n         # local build, bypass the layer cache
+#   ./imageBuild.sh -u         # local build, then also push the DockerHub image
+#   ./imageBuild.sh -u -n      # push, bypassing the layer cache
+#   ./imageBuild.sh -d         # accepted, no-op --- local is the default now
+
+# All paths below are relative to this leaf, wherever the script is run from.
+cd "$(dirname "$(readlink -f "$0")")" || exit 1
+
+# --- Refuse to run inside a container ---------------------------------------
+# Same heuristics as bisos.dockerProc (containerProc_csu._detectInContainer).
+# Images are built on the Container Platform (a host), never from inside a
+# container.
+inContainerReason() {
+  if [ -e /.dockerenv ]; then echo "/.dockerenv exists (docker)"; return 0; fi
+  if [ -e /run/.containerenv ]; then echo "/run/.containerenv exists (podman)"; return 0; fi
+  local marker
+  for marker in docker containerd libpod kubepods lxc; do
+    if grep -q "$marker" /proc/1/cgroup 2>/dev/null; then
+      echo "/proc/1/cgroup contains '$marker'"; return 0
+    fi
+  done
+  return 1
+}
+if reason=$(inContainerReason); then
+  echo "ERROR: this is running inside a container ($reason)." >&2
+  echo "       Build images on the host (the Container Platform), not in a container." >&2
+  exit 1
+fi
+
+# --- A numeric suffix means a secondary instance ----------------------------
+# A leaf named <primary>-<N> (e.g. bisos_deb13-sysd-2) is another instance of
+# the image of ../<primary>. It has no image of its own: the image is built in
+# the primary leaf only.
+leafName=$(basename "$PWD")
+if [[ $leafName =~ ^(.+)-([0-9]+)$ ]]; then
+  primaryLeaf="${BASH_REMATCH[1]}"
+  echo "$leafName is instance ${BASH_REMATCH[2]} of the image of ../$primaryLeaf."
+  echo "It has no image of its own."
+  echo "That image is built in the primary leaf:"
+  echo "  ( cd ../$primaryLeaf && ./imageBuild.sh )"
+  exit 0
+fi
 
 # --- Local image name -------------------------------------------------------
 # MUST match what bisos.dockerProc derives from this leaf's path
@@ -25,9 +64,12 @@ LOCAL_IMAGE="bisos_deb13-sysd"
 LOCAL_TAG="latest"
 
 # The confined image this one is FROM (see Dockerfile). Built by the confined
-# leaf's own build.bash; not pulled.
+# leaf's own build script; not pulled.
 BASE_IMAGE="bisos_deb13-fresh:latest"
 BASE_LEAF="../../../../confined/vnc/xfce/bisos_deb13-fresh"
+# imageBuild.sh once that leaf has been migrated, build.bash until then.
+BASE_BUILD="./imageBuild.sh"
+[ -e "$BASE_LEAF/imageBuild.sh" ] || BASE_BUILD="./build.bash"
 
 # --- DockerHub name ---------------------------------------------------------
 # Used ONLY by -u (upload). Irrelevant to a local build.
@@ -65,7 +107,7 @@ echo
 if ! docker image inspect "$BASE_IMAGE" >/dev/null 2>&1; then
   echo "ERROR: base image $BASE_IMAGE is not in docker's local store." >&2
   echo "       Build the confined leaf first:" >&2
-  echo "         ( cd $BASE_LEAF && ./build.bash )" >&2
+  echo "         ( cd $BASE_LEAF && $BASE_BUILD )" >&2
   exit 1
 fi
 

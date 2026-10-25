@@ -1,0 +1,152 @@
+#+TITLE: bisos_deb13-sysd --- Debian 13, Privileged, systemd, VNC/XFCE
+#+OPTIONS: toc:nil
+
+This leaf of [[https://github.com/bxObjects/bro_dockerfiles][bro_dockerfiles]] specifies the
+=bisos_deb13-sysd= image: Debian 13 with systemd as PID 1, an XFCE desktop served over VNC and noVNC,
+and sshd. It runs under docker as a *privileged* container. It is built =FROM= the confined image
+=bisos_deb13-fresh:latest= of =../../../../confined/vnc/xfce/bisos_deb13-fresh=, which must be built
+first.
+
+This is the *primary* leaf of its image. A sibling leaf with a numeric suffix, such as
+=../bisos_deb13-sysd-2=, is a further instance of the same image: it has its own container name,
+host ports and cgroup v1 subnet, and builds no image of its own --- the image is built here. See
+=../bisos_deb13-sysd-2/README.org=.
+
+* Two Ways to Use This Leaf
+
+This leaf can be used in two ways. Both build the same image, run the same container, and use the
+same names and ports. They are kept at parity.
+
+1. *With BISOS* --- through =./dockerProc.spcs=, a planted command of the =bisos.dockerProc= pip
+   package. The leaf's path is its configuration. This is the path on BISOS platforms.
+2. *Standalone* --- through =./imageBuild.sh= and =./containerManage.sh=. These need nothing but
+   docker and compose: no BISOS, no pip install. They are the only way to use this image on hosts
+   where BISOS cannot be installed (for example old RedHat VMs).
+
+| Task                 | With BISOS (=./dockerProc.spcs -i ...=)  | Standalone                     |
+|----------------------+------------------------------------------+--------------------------------|
+| Build the image      | =containerProc_imageBuild=               | =./imageBuild.sh=              |
+| Create the container | =containerProc_instanceUp= (also starts) | =./containerManage.sh create=  |
+| Start                | =containerProc_instanceUp=               | =./containerManage.sh start=   |
+| Stop                 | =containerProc_instanceDown=             | =./containerManage.sh stop=    |
+| Restart              | =containerProc_instanceRestart=          | =./containerManage.sh restart= |
+| Delete the container | =containerProc_instanceDelete=           | =./containerManage.sh delete=  |
+| Status               | =containerProc_instanceStatus=           | =./containerManage.sh status=  |
+| Verify               | =containerProc_instanceVerify=           | =./verify.sh=                  |
+
+* Files in This Leaf
+
+| File                      | Purpose                                                                  |
+|---------------------------+--------------------------------------------------------------------------|
+| =Dockerfile=              | The image: systemd as PID 1, the vncserver, novnc and sshd units.        |
+| =dockerConf/=             | systemd unit files copied into the image.                                |
+| =docker-compose.yml=      | How to run the container on a *cgroup v2* host.                          |
+| =docker-compose.cgv1.yml= | How to run the container on a *cgroup v1* host.                          |
+| =imageBuild.sh=           | Standalone: build the image.                                             |
+| =containerManage.sh=      | Standalone: create, start, stop, restart, delete the container.          |
+| =verify.sh=               | Standalone: smoke-test a running container.                              |
+| =dockerProc.spcs=         | With BISOS: the planted =bisos.dockerProc= command.                      |
+
+** The two compose files
+
+A container with systemd as PID 1 needs the host's cgroup hierarchy, and that differs between cgroup
+versions, so there is one compose file for each. They differ only in how cgroups are given to the
+container:
+
+- =docker-compose.yml= (cgroup v2): =cgroup: host= and =/sys/fs/cgroup= mounted read-write.
+- =docker-compose.cgv1.yml= (cgroup v1): no =cgroup: host=; =/sys/fs/cgroup= mounted read-only with
+  only its =systemd= subtree read-write. It also gives the container its own bridge network on an
+  explicit subnet (=10.254.13.0/24=), for hosts whose default address pools are exhausted.
+
+Both name the image =bisos_deb13-sysd:latest= and the container =bisos_deb13-sysd=, run it
+privileged, and publish the same host ports (see [[*Ports and Connecting][Ports and Connecting]]).
+You do not pick one: =containerManage.sh= reads the host's cgroup version and uses the matching file.
+To check a host by hand:
+
+#+BEGIN_SRC bash
+stat -fc %T /sys/fs/cgroup   # cgroup2fs: v2, docker-compose.yml; tmpfs: v1, docker-compose.cgv1.yml
+#+END_SRC
+
+* Standalone Usage
+
+Requirements: docker, and compose --- either the =docker compose= plugin or the older =docker-compose=
+binary. Both scripts refuse to run inside a container: run them on the host. Both can be run from any
+directory.
+
+** Building the image: =imageBuild.sh=
+
+#+BEGIN_SRC bash
+./imageBuild.sh            # local build (the default)
+./imageBuild.sh -n         # local build, bypassing the layer cache
+./imageBuild.sh -u         # local build, then also push the multi-arch image to DockerHub
+#+END_SRC
+
+The image is tagged =bisos_deb13-sysd:latest=. If its base, =bisos_deb13-fresh:latest=, is not in
+docker's local store, the script stops and prints the command that builds it in the confined leaf.
+
+** Managing the container: =containerManage.sh=
+
+#+BEGIN_SRC bash
+./containerManage.sh [-n] <create|start|stop|restart|delete|status>
+#+END_SRC
+
+| Verb      | Does                                                         | Compose command            |
+|-----------+--------------------------------------------------------------+----------------------------|
+| =create=  | Create the container, not started.                           | =up --no-start --no-build= |
+| =start=   | Start it.                                                    | =start=                    |
+| =stop=    | Stop it. The container and its writable layer are kept.      | =stop=                     |
+| =restart= | Stop then start it.                                          | =restart=                  |
+| =delete=  | Remove container + network. Writable layer lost, image kept. | =down=                     |
+| =status=  | Show cgroup version, compose file, state and host ports.     | =ps=                       |
+
+Before =create=, the script checks that the container does not already exist, that none of its host
+ports is in use, that on cgroup v1 the compose network's subnet overlaps no other docker network and
+no host route, and that the image has been built. If any check fails it reports every problem and
+creates nothing. =create= never builds: building is =imageBuild.sh='s job.
+
+=-n= is a dry run. The checks still run, but the commands that would change anything are printed,
+not executed:
+
+#+BEGIN_SRC bash
+./containerManage.sh -n create
+#+END_SRC
+
+The container name, image and host ports are read from the selected compose file, so the compose
+files stay the one place where they are set.
+
+A first run:
+
+#+BEGIN_SRC bash
+( cd ../../../../confined/vnc/xfce/bisos_deb13-fresh && ./build.bash )   # base image, once
+./imageBuild.sh
+./containerManage.sh create
+./containerManage.sh start
+./verify.sh
+#+END_SRC
+
+* Ports and Connecting
+
+| Service | Host port | Container port | Connect with                         |
+|---------+-----------+----------------+--------------------------------------|
+| SSH     |      2224 |             22 | =ssh -p 2224 <user>@localhost=       |
+| VNC     |      5903 |           5901 | a VNC client at =localhost:5903=     |
+| noVNC   |      6903 |           6901 | a browser at =http://localhost:6903/= |
+
+* Verifying: =verify.sh=
+
+With the container running:
+
+#+BEGIN_SRC bash
+./verify.sh                                              # default container name and ports
+./verify.sh bisos_deb13-sysd 2224 5903 6903              # explicit
+#+END_SRC
+
+It checks that systemd is PID 1, that the =vncserver=, =novnc= and =sshd-container= services are
+active, that journald works, that the host ports listen and that noVNC answers over HTTP. It exits
+non-zero if any check fails.
+
+* With BISOS
+
+On a BISOS platform with =bisos.dockerProc= installed, =./dockerProc.spcs= with no arguments lists
+its commands for this leaf. See the =bisos.dockerProc= README
+([[https://github.com/bisos-pip/dockerProc]]).

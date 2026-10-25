@@ -1,10 +1,8 @@
 services:
 
   vnc:
-    build:
-      context: .
-      dockerfile: ./Dockerfile
 
+    # Shared image, built in ../bisos_deb13-sysd (a numeric suffix = a shared image).
     image: bisos_deb13-sysd:latest
     container_name: bisos_deb13-sysd-2
 

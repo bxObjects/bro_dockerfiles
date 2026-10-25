@@ -1,0 +1,116 @@
+#+TITLE: bisos_deb13-sysd-2 --- Second Instance of bisos_deb13-sysd
+#+OPTIONS: toc:nil
+
+This leaf of [[https://github.com/bxObjects/bro_dockerfiles][bro_dockerfiles]] runs a *second instance*
+of the =bisos_deb13-sysd= image (Debian 13, systemd as PID 1, an XFCE desktop over VNC and noVNC,
+sshd; a *privileged* docker container), next to the first instance of =../bisos_deb13-sysd=.
+
+* A Numeric Suffix Means a Shared Image
+
+A leaf named =<primary>-<N>= is instance =N= of the image of =../<primary>=. It has no image of its
+own. Here:
+
+- *Shared:* the image =bisos_deb13-sysd:latest=. It is built only in =../bisos_deb13-sysd=.
+  =./imageBuild.sh= here builds nothing: it says so and prints the command for the primary leaf.
+- *Per instance:* the container name, the host ports and, on cgroup v1, the compose network and its
+  subnet. These must stay distinct from every other instance's, so that the instances run side by
+  side and creating, stopping or deleting one never touches another.
+
+| Leaf                 | Container            | SSH  | VNC  | noVNC | cgroup v1 subnet  |
+|----------------------+----------------------+------+------+-------+-------------------|
+| =bisos_deb13-sysd=   | =bisos_deb13-sysd=   | 2224 | 5903 | 6903  | =10.254.13.0/24=  |
+| =bisos_deb13-sysd-2= | =bisos_deb13-sysd-2= | 2227 | 5906 | 6906  | =10.254.132.0/24= |
+
+Each container has its own writable layer, its own =tmpfs= mounts and its own =/shuttle/this= (this
+leaf). Rebuilding the image in the primary leaf does not change a container that already exists:
+it keeps the image it was created from until it is deleted and created again.
+
+The =Dockerfile= and =dockerConf/= in this leaf are left from the copy this leaf started as. They are
+not used: the compose files here have no =build:= section, and the image comes from the primary leaf.
+
+* Files in This Leaf
+
+| File                      | Purpose                                                                  |
+|---------------------------+--------------------------------------------------------------------------|
+| =docker-compose.yml=      | How to run this instance on a *cgroup v2* host.                          |
+| =docker-compose.cgv1.yml= | How to run this instance on a *cgroup v1* host.                          |
+| =imageBuild.sh=           | Points at the primary leaf; builds nothing here.                         |
+| =containerManage.sh=      | Standalone: create, start, stop, restart, delete this instance.          |
+| =verify.sh=               | Standalone: smoke-test this running instance.                            |
+| =dockerProc.spcs=         | With BISOS: the planted =bisos.dockerProc= command (see below).          |
+
+=imageBuild.sh= and =containerManage.sh= are the same files as in the primary leaf. Everything that
+differs between instances is in the compose files.
+
+** The two compose files
+
+A container with systemd as PID 1 needs the host's cgroup hierarchy, and that differs between cgroup
+versions, so there is one compose file for each:
+
+- =docker-compose.yml= (cgroup v2): =cgroup: host= and =/sys/fs/cgroup= mounted read-write.
+- =docker-compose.cgv1.yml= (cgroup v1): no =cgroup: host=; =/sys/fs/cgroup= mounted read-only with
+  only its =systemd= subtree read-write. It gives the container its own bridge network,
+  =bisos_deb13_sysd2_cgv1=, on the explicit subnet =10.254.132.0/24=.
+
+You do not pick one: =containerManage.sh= reads the host's cgroup version and uses the matching file.
+
+* Standalone Usage
+
+Requirements: docker, and compose --- either the =docker compose= plugin or the older =docker-compose=
+binary. Both scripts refuse to run inside a container: run them on the host, from any directory.
+
+#+BEGIN_SRC bash
+./containerManage.sh [-n] <create|start|stop|restart|delete|status>
+#+END_SRC
+
+| Verb      | Does                                                         | Compose command            |
+|-----------+--------------------------------------------------------------+----------------------------|
+| =create=  | Create the container, not started.                           | =up --no-start --no-build= |
+| =start=   | Start it.                                                    | =start=                    |
+| =stop=    | Stop it. The container and its writable layer are kept.      | =stop=                     |
+| =restart= | Stop then start it.                                          | =restart=                  |
+| =delete=  | Remove container + network. Writable layer lost, image kept. | =down=                     |
+| =status=  | Show cgroup version, compose file, state and host ports.     | =ps=                       |
+
+Before =create=, the script checks, and if any check fails reports every problem and creates nothing:
+- the container does not already exist;
+- none of its host ports is in use;
+- on cgroup v1, the compose network's subnet overlaps no other docker network and no host route
+  (the host's own interface subnets included);
+- the shared image has been built (if not, it prints the command for the primary leaf).
+
+=-n= is a dry run: the checks still run, but the commands that would change anything are printed,
+not executed. =delete= runs =compose down= for this leaf's compose project only (compose names the
+project after the leaf directory), so it removes this instance and its network, never the primary's.
+
+A first run, after the primary leaf has built the image:
+
+#+BEGIN_SRC bash
+( cd ../bisos_deb13-sysd && ./imageBuild.sh )      # the shared image, in the primary leaf
+./containerManage.sh -n create
+./containerManage.sh create
+./containerManage.sh start
+./verify.sh
+#+END_SRC
+
+* Ports and Connecting
+
+| Service | Host port | Container port | Connect with                          |
+|---------+-----------+----------------+---------------------------------------|
+| SSH     |      2227 |             22 | =ssh -p 2227 <user>@localhost=        |
+| VNC     |      5906 |           5901 | a VNC client at =localhost:5906=      |
+| noVNC   |      6906 |           6901 | a browser at =http://localhost:6906/= |
+
+* Verifying: =verify.sh=
+
+With the container running, =./verify.sh= (defaults: =bisos_deb13-sysd-2 2227 5906 6906=) checks that
+systemd is PID 1, that the =vncserver=, =novnc= and =sshd-container= services are active, that
+journald works, that the host ports listen and that noVNC answers over HTTP. It exits non-zero if any
+check fails.
+
+* With BISOS --- Not Yet Instance-Aware
+
+=bisos.dockerProc= does not yet know the numeric-suffix rule. From this leaf's path it derives the
+image name =bisos_deb13-sysd-2= (so =containerProc_imageBuild= would build a separate image) and the
+ports of =bisos_deb13-sysd= (so =containerProc_instanceVerify= and =containerProc_instanceStatus=
+would check the primary instance). Until it learns the rule, use the standalone scripts in this leaf.
