@@ -1,0 +1,71 @@
+# docker-compose.cgv1.yml --- cgroup v1 overlay for the privileged sysd image.
+#
+# Use this INSTEAD of docker-compose.yml on a host that is still on cgroup v1
+# (e.g. RHEL/CentOS 7, or RHEL 8 in its default v1/hybrid mode that cannot be
+# rebooted onto the unified v2 hierarchy). Check the host first:
+#
+#     stat -fc %T /sys/fs/cgroup
+#         cgroup2fs -> v2, use docker-compose.yml
+#         tmpfs     -> v1/hybrid, use THIS file
+#
+# Differences from the v2 docker-compose.yml:
+#   - NO `cgroup: host` (--cgroupns=host): cgroup namespaces are a newer-kernel
+#     feature; on v1 hosts the default (host) namespace is used implicitly.
+#   - The cgroup hierarchy is mounted read-only, with only the `systemd`
+#     subsystem read-write --- the classic v1 systemd-in-container recipe ---
+#     instead of the v2 `/sys/fs/cgroup:rw` single mount.
+#
+# Still requires `--privileged`. This does NOT give the rootless posture;
+# rootless systemd needs cgroup v2 (see rootless-sysd variant). Run with:
+#
+#     docker compose -f docker-compose.cgv1.yml up -d
+#     ./verify.sh mb-deb13-sysd-xfce-cgv1 2224 5904 6904
+#
+# Note: if Docker's default bridge pool is exhausted on the host, the explicit
+# subnet below avoids the "all predefined address pools have been fully
+# subnetted" error. Adjust if 10.254.13.0/24 overlaps something on your host
+# (inspect with: docker network inspect $(docker network ls -q --filter
+# driver=bridge) --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}').
+
+services:
+
+  vnc:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+
+    image: bisos_deb13-sysd:latest
+    container_name: bisos_deb13-sysd-2
+
+    privileged: true
+    pids_limit: 16384
+    # NOTE: no `cgroup: host` here --- unsupported/meaningless on cgroup v1.
+
+    volumes:
+       - ./:/shuttle/this
+       - /sys/fs/cgroup:/sys/fs/cgroup:ro
+       - /sys/fs/cgroup/systemd:/sys/fs/cgroup/systemd:rw
+    tmpfs:
+      - /tmp
+      - /run
+      - /run/lock
+
+    stop_signal: SIGRTMIN+3
+
+    ports:
+      - "2227:22"      # SSH
+      - "5906:5901"    # VNC
+      - "6906:6901"    # NoVNC
+
+    networks:
+      - bisos_deb13_cgv1
+
+networks:
+  bisos_deb13_cgv1:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.254.13.0/24
+
+
+# Just run:: docker compose -f docker-compose.cgv1.yml up -d

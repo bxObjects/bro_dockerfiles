@@ -1,0 +1,26 @@
+[Unit]
+Description=TigerVNC Server
+After=syslog.target network.target dbus.service
+
+[Service]
+Type=forking
+User=bystar
+WorkingDirectory=/home/bystar
+
+# Clean up stale lock files from a previous run.
+ExecStartPre=/bin/bash -c 'rm -f /tmp/.X11-unix/X1 /tmp/.X1-lock'
+
+ExecStart=/usr/bin/vncserver \
+    :1 \
+    -localhost no \
+    -geometry 1920x1080 \
+    -depth 16 \
+    -SecurityTypes None --I-KNOW-THIS-IS-INSECURE
+
+ExecStop=/usr/bin/vncserver -kill :1
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,9 @@
+dockerProc.spcs -i containerProc_verify
+PASS: SSH port 2224 reachable
+PASS: VNC port 5903 reachable
+PASS: noVNC HTTP 6903 responds
+FAIL: ['Container bisos_deb13-sysd not running', "PID 1 is '', expected systemd", "systemd is-system-running=''", "Service vncserver@:1.service is-active=''", "Service novnc.service is-active=''", "Service sshd-container.service is-active=''"]
+['Container bisos_deb13-sysd not running', "PID 1 is '', expected systemd", "systemd is-system-running=''", "Service vncserver@:1.service is-active=''", "Service novnc.service is-active=''", "Service sshd-container.service is-active=''"]
+dockerProc.spcs.containerProc_verify Failed: Error=OpError.Failure -- None
+HSS-1013-bystar# pwd
+/bxRepos/bxObjects/bro_dockerfiles/debian/13/privileged/vnc/xfce/bisos_deb13-sysd

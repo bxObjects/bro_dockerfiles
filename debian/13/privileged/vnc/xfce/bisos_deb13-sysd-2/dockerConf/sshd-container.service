@@ -1,0 +1,15 @@
+[Unit]
+Description=OpenSSH Server (container)
+After=network.target dbus.service
+
+[Service]
+Type=simple
+ExecStartPre=/usr/sbin/sshd -t
+ExecStart=/usr/sbin/sshd -D
+ExecReload=/bin/kill -HUP $MAINPID
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

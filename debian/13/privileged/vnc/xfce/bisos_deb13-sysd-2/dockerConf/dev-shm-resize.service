@@ -1,0 +1,13 @@
+[Unit]
+Description=Enlarge /dev/shm for Chrome/Chromium
+DefaultDependencies=no
+After=local-fs.target
+Before=sysinit.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/mount -o remount,size=2G /dev/shm
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target
