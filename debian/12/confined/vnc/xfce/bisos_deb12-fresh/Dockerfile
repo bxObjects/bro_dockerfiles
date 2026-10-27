@@ -101,14 +101,19 @@ RUN echo 'root:password' | chpasswd
 USER $USERNAME
 WORKDIR /home/$USERNAME
 
-# Prepare VNC dirs. No vncpasswd: the server runs with -SecurityTypes None
-# (see vncserver.service / entrypoint), so no password file is needed.
+# Prepare VNC dirs. No vncpasswd at build time: an instance has no VNC password unless
+# one is set later (containerManage.sh vncPassword set); /usr/local/bin/vncStart.sh
+# picks the security type at each start.
 RUN touch .Xauthority \
  && mkdir .vnc
 COPY --chown=$USERNAME:$USERNAME ./dockerConf/xstartup .vnc/xstartup
 USER root
 RUN echo ":1=$USERNAME" >> /etc/tigervnc/vncserver.users \
  && chmod +x .vnc/xstartup
+# VNC start script: no password, or the instance's password if one is set. Inherited by
+# the sysd images, whose vncserver.service runs it.
+COPY ./dockerConf/vncStart.sh /usr/local/bin/vncStart.sh
+RUN chmod 755 /usr/local/bin/vncStart.sh
 USER $USERNAME
 
 # Add some scripts for the running container.
@@ -134,7 +139,7 @@ RUN chmod +x dockerConf/entrypoint.sh \
 # Raw-BISOS bootstrap payload. Baked into the image at ~/raw-bisos so users can
 # run 'cd ~/raw-bisos && bash installRawBisos.sh' inside the container without
 # needing a host mount. The 'raw-bisos' entry in the build context is copied in
-# by ./build.bash from the single canonical source at
+# by ./imageBuild.sh from the single canonical source at
 # bro_dockerfiles/common/raw-bisos, shared by every confined leaf. The sysd
 # variants (privileged, rootless-sysd) inherit ~/raw-bisos via FROM.
 COPY --chown=$USERNAME:$USERNAME ./raw-bisos /home/$USERNAME/raw-bisos
@@ -165,3 +170,6 @@ USER $USERNAME
 # Run the entrypoint.sh script to ensure that
 # the VNC and noVNC servers are running.
 ENTRYPOINT dockerConf/entrypoint.sh
+
+# DockerHub name and tag, used only by ./imageBuild.sh -u (upload).
+LABEL org.bisos.hubImage="bisos/deb12-fresh-vnc-xfce" org.bisos.hubTag="1.21"

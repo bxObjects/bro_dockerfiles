@@ -16,10 +16,14 @@ own. Here:
   subnet. These must stay distinct from every other instance's, so that the instances run side by
   side and creating, stopping or deleting one never touches another.
 
-| Leaf                 | Container            | SSH  | VNC  | noVNC | cgroup v1 subnet  |
-|----------------------+----------------------+------+------+-------+-------------------|
-| =bisos_deb13-sysd=   | =bisos_deb13-sysd=   | 2224 | 5903 | 6903  | =10.254.13.0/24=  |
-| =bisos_deb13-sysd-2= | =bisos_deb13-sysd-2= | 2227 | 5906 | 6906  | =10.254.132.0/24= |
+| Leaf                 | Container            |  SSH |  VNC | noVNC | cgroup v1 subnet |
+|----------------------+----------------------+------+------+-------+------------------|
+| =bisos_deb13-sysd=   | =bisos_deb13-sysd=   | 2224 | 5903 |  6903 | =172.16.12.0/24= |
+| =bisos_deb13-sysd-2= | =bisos_deb13-sysd-2= | 2227 | 5906 |  6906 | =172.16.13.0/24= |
+
+The subnets are hand-picked today; a further instance must pick one that is free on the host and
+distinct from these (=containerManage.sh create= refuses an overlapping one). Assigning them from a
+registrar, with the ports, is planned in bisos.dockerProc (Stage 4 of its AI-WorkPlan.org).
 
 Each container has its own writable layer, its own =tmpfs= mounts and its own =/shuttle/this= (this
 leaf). Rebuilding the image in the primary leaf does not change a container that already exists:
@@ -30,17 +34,17 @@ not used: the compose files here have no =build:= section, and the image comes f
 
 * Files in This Leaf
 
-| File                      | Purpose                                                                  |
-|---------------------------+--------------------------------------------------------------------------|
-| =docker-compose.yml=      | How to run this instance on a *cgroup v2* host.                          |
-| =docker-compose.cgv1.yml= | How to run this instance on a *cgroup v1* host.                          |
-| =imageBuild.sh=           | Points at the primary leaf; builds nothing here.                         |
-| =containerManage.sh=      | Standalone: create, start, stop, restart, delete this instance.          |
-| =verify.sh=               | Standalone: smoke-test this running instance.                            |
-| =dockerProc.spcs=         | With BISOS: the planted =bisos.dockerProc= command (see below).          |
+| File                      | Purpose                                                         |
+|---------------------------+-----------------------------------------------------------------|
+| =docker-compose.yml=      | How to run this instance on a *cgroup v2* host.                 |
+| =docker-compose.cgv1.yml= | How to run this instance on a *cgroup v1* host.                 |
+| =imageBuild.sh=           | Points at the primary leaf; builds nothing here.                |
+| =containerManage.sh=      | Standalone: create, start, stop, restart, delete this instance. |
+| =verify.sh=               | Standalone: smoke-test this running instance.                   |
+| =dockerProc.spcs=         | With BISOS: the planted =bisos.dockerProc= command (see below). |
 
-=imageBuild.sh= and =containerManage.sh= are the same files as in the primary leaf. Everything that
-differs between instances is in the compose files.
+=imageBuild.sh= and =containerManage.sh= are the same files as in the primary leaf (and in every
+leaf of bro_dockerfiles). Everything that differs between instances is in the compose files.
 
 ** The two compose files
 
@@ -50,7 +54,7 @@ versions, so there is one compose file for each:
 - =docker-compose.yml= (cgroup v2): =cgroup: host= and =/sys/fs/cgroup= mounted read-write.
 - =docker-compose.cgv1.yml= (cgroup v1): no =cgroup: host=; =/sys/fs/cgroup= mounted read-only with
   only its =systemd= subtree read-write. It gives the container its own bridge network,
-  =bisos_deb13_sysd2_cgv1=, on the explicit subnet =10.254.132.0/24=.
+  =bisos_deb13_sysd2_cgv1=, on the explicit subnet =172.16.13.0/24=.
 
 You do not pick one: =containerManage.sh= reads the host's cgroup version and uses the matching file.
 
@@ -63,14 +67,15 @@ binary. Both scripts refuse to run inside a container: run them on the host, fro
 ./containerManage.sh [-n] <create|start|stop|restart|delete|status>
 #+END_SRC
 
-| Verb      | Does                                                         | Compose command            |
-|-----------+--------------------------------------------------------------+----------------------------|
-| =create=  | Create the container, not started.                           | =up --no-start --no-build= |
-| =start=   | Start it.                                                    | =start=                    |
-| =stop=    | Stop it. The container and its writable layer are kept.      | =stop=                     |
-| =restart= | Stop then start it.                                          | =restart=                  |
-| =delete=  | Remove container + network. Writable layer lost, image kept. | =down=                     |
-| =status=  | Show cgroup version, compose file, state and host ports.     | =ps=                       |
+| Verb          | Does                                                         | Compose command            |
+|---------------+--------------------------------------------------------------+----------------------------|
+| =create=      | Create the container, not started.                           | =up --no-start --no-build= |
+| =start=       | Start it.                                                    | =start=                    |
+| =stop=        | Stop it. The container and its writable layer are kept.      | =stop=                     |
+| =restart=     | Stop then start it.                                          | =restart=                  |
+| =delete=      | Remove container + network. Writable layer lost, image kept. | =down=                     |
+| =status=      | Show cgroup version, compose file, state and host ports.     | =ps=                       |
+| =vncPassword= | =set= or =clear= the VNC password (see below).               | =cp=, =restart=            |
 
 Before =create=, the script checks, and if any check fails reports every problem and creates nothing:
 - the container does not already exist;
@@ -93,6 +98,14 @@ A first run, after the primary leaf has built the image:
 ./verify.sh
 #+END_SRC
 
+** VNC password (optional)
+
+VNC and noVNC have *no password by default*. =./containerManage.sh vncPassword set= gives this
+instance one (it asks twice, and restarts the container if it runs); =vncPassword clear= goes back
+to none; =status= shows "VNC auth: none | password". The password is kept in this instance's
+container, independent of the primary's, and is lost on =delete=. Only its first 8 characters
+count, and VNC traffic is not encrypted: across a network, use an SSH tunnel.
+
 * Ports and Connecting
 
 | Service | Host port | Container port | Connect with                          |
@@ -108,9 +121,11 @@ systemd is PID 1, that the =vncserver=, =novnc= and =sshd-container= services ar
 journald works, that the host ports listen and that noVNC answers over HTTP. It exits non-zero if any
 check fails.
 
-* With BISOS --- Not Yet Instance-Aware
+* With BISOS
 
-=bisos.dockerProc= does not yet know the numeric-suffix rule. From this leaf's path it derives the
-image name =bisos_deb13-sysd-2= (so =containerProc_imageBuild= would build a separate image) and the
-ports of =bisos_deb13-sysd= (so =containerProc_instanceVerify= and =containerProc_instanceStatus=
-would check the primary instance). Until it learns the rule, use the standalone scripts in this leaf.
+=bisos.dockerProc= knows the numeric-suffix rule (since 2026-10-26): =./dockerProc.spcs= in this
+leaf uses the image =bisos_deb13-sysd:latest= of the primary leaf, and this leaf's own container
+name and host ports, read from its =docker-compose.yml=. =containerProc_imageBuild= builds
+nothing here, and =containerProc_imageDelete= / =containerProc_fullClean= leave the shared image
+alone. =bisos.dockerProc= supports cgroup v2 hosts only; on a cgroup v1 host its commands refuse
+to run.

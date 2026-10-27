@@ -1,0 +1,220 @@
+#+title: Prior and Similar Art for bro_dockerfiles
+#+DATE: <2026-10-26 Mon>
+#+AUTHOR: Mohsen BANAN
+#+OPTIONS: toc:3
+
+*Anchored in time: surveyed on 2026-10-26.* This is a snapshot of what was publicly described then,
+gathered by web search of READMEs, Docker Hub pages, documentation and blog posts during a Claude
+Code session. It is not exhaustive, and the other projects' features are as their own pages and
+third-party write-ups describe them: none was installed or run for this comparison. Read every
+statement below as "as of 2026-10-26", and re-survey before quoting it.
+
+The README of this repo ([[file:README.org][README.org]]) describes what bro_dockerfiles is and the
+two ways to use it. This file looks sideways: at projects that address some of the same needs.
+
+* Table of Contents     :TOC:
+- [[#what-bro_dockerfiles-combines][What bro_dockerfiles Combines]]
+- [[#similar-art-by-kind][Similar Art, by Kind]]
+  - [[#desktop-over-vnc-images][Desktop-over-VNC Images]]
+  - [[#browser-desktops-and-desktop-streaming-platforms][Browser Desktops and Desktop-Streaming Platforms]]
+  - [[#systemd-in-a-container-test-images][systemd-in-a-Container Test Images]]
+  - [[#gui-and-desktop-container-runners][GUI and Desktop Container Runners]]
+  - [[#system-containers][System Containers]]
+  - [[#development-environment-specifications][Development-Environment Specifications]]
+  - [[#rootless-podman-with-systemd-and-quadlet][Rootless Podman with systemd, and Quadlet]]
+- [[#summary-table][Summary Table]]
+- [[#what-appears-distinctive-in-bro_dockerfiles][What Appears Distinctive in bro_dockerfiles]]
+- [[#ideas-worth-considering][Ideas Worth Considering]]
+- [[#method-and-limits][Method and Limits]]
+
+* What bro_dockerfiles Combines
+
+The axes of the comparison. Each kind of similar art below covers some of them; none found covers
+all.
+
+1. *A desktop in a container.* XFCE over TigerVNC and noVNC, plus sshd, on Debian 12 and 13.
+2. *systemd as PID 1*, so the container behaves like a small VM (units, timers, socket activation,
+   journald).
+3. *Init/isolation profiles as peers of one image*: confined (no systemd, unprivileged), privileged
+   (docker, systemd), rootless-sysd (rootless podman, systemd), for single-user and multi-tenant
+   hosts.
+4. *A release × profile matrix built by inheritance*: each sysd image is =FROM= its release's
+   confined image.
+5. *The leaf directory as a complete, standalone unit*: =Dockerfile=, compose or Quadlet file, and
+   two scripts that are identical in every leaf and derive everything from it. They check before
+   they act (container name, host ports, cgroup v1 subnet, image built), handle cgroup v1 and v2
+   hosts, and refuse to run inside a container.
+6. *Instances as sibling leaves*: =<primary>-<N>= runs the primary's image with its own container
+   name, ports and subnet.
+7. *An optional framework layer* (=bisos.dockerProc=): the same verbs as planted commands whose
+   parameters come from the leaf's path, a tree walker that applies one verb to many leaves, and
+   (planned) a per-user registrar of ports.
+8. *A reconstruction test matrix*: the Raw-BISOS bootstrap is baked into every image, so the
+   leaves are the container-based variant of BISOS's CI/CD (RawBisos-Reconstruction).
+
+* Similar Art, by Kind
+
+** Desktop-over-VNC Images
+
+- *What*: images that run a desktop with a VNC server and the noVNC web client. accetto's G3 line
+  (=accetto/debian-vnc-xfce-g3= on Debian 13, 12 and 11; =ubuntu-vnc-xfce-g3= on Ubuntu 24.04, 22.04,
+  20.04; Firefox and Chromium variants), ConSol's =docker-headless-vnc-container= (Xfce or IceWM,
+  Debian and Rocky, non-root by default, =VNC_PW= sets the password), and braughtg's
+  =vnc-novnc-base=, the Debian base this repo's =Dockerfile= started from (aimed at course
+  containers).
+- *Overlap*: 1, and part of 4 (accetto covers several releases). Same ports by convention: 5901 for
+  VNC, 6901 for noVNC.
+- *Differs*: no systemd; one profile; run with plain =docker run= or compose; no matrix by
+  inheritance, no per-leaf scripts or pre-create checks.
+- Sources: [[https://hub.docker.com/r/accetto/debian-vnc-xfce-g3][accetto/debian-vnc-xfce-g3]];
+  [[https://hub.docker.com/r/accetto/ubuntu-vnc-xfce-g3][accetto/ubuntu-vnc-xfce-g3]];
+  [[https://hub.docker.com/r/consol/debian-xfce-vnc][consol/debian-xfce-vnc]];
+  [[https://hub.docker.com/r/braughtg/vnc-novnc-base][braughtg/vnc-novnc-base]].
+
+** Browser Desktops and Desktop-Streaming Platforms
+
+- *What*: LinuxServer.io's Webtop (full desktops, chosen by image tag, reached in a browser through
+  KasmVNC; only =/config= persists across image updates; passwordless sudo), and Kasm Workspaces (a
+  self-hosted platform that runs desktops, browsers and single apps in containers and streams them
+  to a browser, with users, groups, RBAC and disposable sessions; single- or multi-server, or
+  Kubernetes).
+- *Overlap*: 1; Kasm also 3's multi-tenant goal and 7's "a platform above the images".
+- *Differs*: no systemd profiles; Kasm is a server product with its own control plane and streaming
+  protocol, where bro_dockerfiles stays a repo of images plus scripts; Webtop is configured by
+  environment variables rather than by the leaf it lives in.
+- Sources: [[https://github.com/linuxserver/docker-webtop][linuxserver/docker-webtop]];
+  [[https://docs.linuxserver.io/images/docker-baseimage-kasmvnc/][baseimage-kasmvnc docs]];
+  [[https://virtualizationhowto.com/2024/02/kasm-workspaces-install-5-steps-to-run-your-linux-desktop-inside-a-docker-container][Kasm Workspaces install]];
+  [[https://selfhostyourself.com/services/kasm-workspaces][Kasm Workspaces overview]].
+
+** systemd-in-a-Container Test Images
+
+- *What*: headless images with systemd as PID 1, mostly for testing Ansible roles with Molecule:
+  geerlingguy's =docker-debian12-ansible= (run with =--privileged=, =/sys/fs/cgroup:rw=,
+  =--cgroupns=host=; "for testing ... not for production"), trfore's =docker-debian12-systemd=
+  (cgroup mount =:ro= on v1, =:rw= on v2), bsmeding's =ansible_cicd_*= family (one =molecule.yml=
+  drives a distribution matrix through =MOLECULE_DISTRO=), and buluma's collection across many
+  distributions.
+- *Overlap*: 2, 4 (a distribution matrix), 8 (a test matrix for provisioning code). The run flags are
+  the same as this repo's privileged =docker-compose.yml=.
+- *Differs*: headless; privileged only (no rootless profile); no desktop; driven by a test framework
+  rather than usable as an everyday environment.
+- Sources: [[https://github.com/geerlingguy/docker-debian12-ansible][geerlingguy/docker-debian12-ansible]];
+  [[https://hub.docker.com/r/trfore/docker-debian12-systemd][trfore/docker-debian12-systemd]];
+  [[https://hub.docker.com/r/bsmeding/ansible_cicd_debian11][bsmeding/ansible_cicd_*]];
+  [[https://hub.docker.com/r/buluma/docker-molecule-images][buluma/docker-molecule-images]];
+  [[https://github.com/LewisGaul/systemd-containers][systemd in containers (notes)]].
+
+** GUI and Desktop Container Runners
+
+- *What*: tools that run GUI apps or whole desktops from container images on the host's display.
+  x11docker (docker, podman, nerdctl; =--desktop= for a full desktop; =--init= chooses PID 1, with
+  systemd among the options). Distrobox and Toolbx (another distribution as a container tightly
+  integrated with the host: shared =$HOME=, devices, X11/Wayland, audio; =distrobox-export= puts its
+  apps on the host).
+- *Overlap*: 1, 2 (x11docker's =--init=systemd=), 3 (both work with podman).
+- *Differs*: they display on the host's own X11/Wayland session, not over VNC from anywhere; Distrobox
+  deliberately removes isolation where bro_dockerfiles keeps it; a runner, not a set of images.
+- Sources: [[https://github.com/mviereck/x11docker][x11docker]];
+  [[https://mankier.com/1/x11docker][x11docker man page]];
+  [[https://lwn.net/Articles/1049423/][Distrobox (LWN)]];
+  [[https://www.linux-magazine.com/Issues/2024/286/Linux-in-a-Box][Containerizing distros (Linux Magazine)]].
+
+** System Containers
+
+- *What*: LXD and Incus (its community fork) run *system containers*: a full OS with its init,
+  long-lived, managed like a VM, unprivileged by default; Incus also manages VMs.
+- *Overlap*: 2 and 3's aim --- "behaves as close to a VM as possible", with a safe default posture.
+- *Differs*: a different runtime and image ecosystem than OCI images under docker/podman; the matrix,
+  the desktop and the leaf scripts would all be something one builds on top.
+- Sources: [[https://canonical.com/blog/lxd-vs-docker][LXD vs Docker]] (Canonical);
+  [[https://stackshare.io/stackups/incus-vs-lxd][Incus vs LXD]].
+
+** Development-Environment Specifications
+
+- *What*: the Development Containers specification (=devcontainer.json=, maintained under the
+  =devcontainers= GitHub organization, read by VS Code, Visual Studio, IntelliJ, Codespaces, DevPod),
+  with reusable /Features/ and a reference CLI; DevPod (client-only, any backend); Coder (a
+  multi-user platform that builds and runs dev containers in workspaces, with SSH and port
+  detection).
+- *Overlap*: 5 (a declarative environment in the repo, with a standalone CLI), 7 (Coder as the
+  multi-user platform above it).
+- *Differs*: IDE-centred application containers, not desktops with systemd; reuse is by Features
+  composed into one image, where bro_dockerfiles reuses by =FROM= inheritance and profile.
+- Sources: [[https://containers.dev][containers.dev]];
+  [[https://www.github.com/devcontainers][devcontainers organization]];
+  [[https://hackernoon.com/remote-development-made-simple-with-devpod-a-free-open-source-tool][DevPod]];
+  [[https://coder.com/docs/user-guides/devcontainers][Coder dev containers]].
+
+** Rootless Podman with systemd, and Quadlet
+
+- *What*: Podman's =--systemd= mode (it sets up cgroup delegation and the =tmpfs= mounts systemd
+  needs) and Quadlet (=.container= files in =~/.config/containers/systemd/= turned into user
+  systemd units; the recommended deployment style from Podman 5 according to one guide).
+- *Overlap*: 3; the rootless-sysd leaves use both.
+- *Differs*: building blocks, not images; bro_dockerfiles is one packaging of them.
+- Sources: [[https://redhat.com/sysadmin/quadlet-podman][Quadlet (Red Hat)]];
+  [[https://docs.oracle.com/en/operating-systems/oracle-linux/podman/podman-WorkingWithPodmanServices.html][Working with Podman services (Oracle)]];
+  [[https://computingforgeeks.com/podman-quadlet-systemd-fedora/][Podman Quadlet on Fedora]].
+
+* Summary Table
+
+Axes as numbered in [[#what-bro_dockerfiles-combines][What bro_dockerfiles Combines]].
+
+| Kind                        | Examples                              | Axes        |
+|-----------------------------+---------------------------------------+-------------|
+| Desktop-over-VNC images     | accetto G3, ConSol, braughtg          | 1, (4)      |
+| Browser desktops, streaming | Webtop, Kasm Workspaces               | 1, (3), (7) |
+| systemd test images         | geerlingguy, trfore, bsmeding, buluma | 2, 4, 8     |
+| GUI / desktop runners       | x11docker, Distrobox, Toolbx          | 1, 2, 3     |
+| System containers           | LXD, Incus                            | 2, 3        |
+| Dev-environment specs       | devcontainers, DevPod, Coder          | 5, (7)      |
+| Rootless podman + Quadlet   | =podman --systemd=, Quadlet           | 3           |
+| bro_dockerfiles             | this repo (+ =bisos.dockerProc=)      | 1--8        |
+
+* What Appears Distinctive in bro_dockerfiles
+
+As far as this survey found:
+
+- *A desktop and systemd together*, in OCI images run by plain docker or podman: the VNC images have
+  no systemd, the systemd images have no desktop.
+- *Profiles as peers of one image* --- confined, privileged, rootless --- chosen by the host and the
+  tenancy, not by building a different image.
+- *The leaf as the unit*: everything needed to build, run and check one image or instance is in its
+  directory, and the scripts there are identical across leaves.
+- *Checks before create* (name, ports, subnet, image) and the refusal to run nested, in both the
+  standalone scripts and the framework.
+- *Two ways at parity*: standalone scripts and an optional framework over the same files.
+- *A container matrix that doubles as a CI matrix* for bootstrapping an OS layer (Raw-BISOS).
+
+* Ideas Worth Considering
+
+- *Bind the published ports to =127.0.0.1= by default.* The images use a well-known password and
+  noVNC/VNC need none; accetto and ConSol make the VNC password settable (=VNC_PW=), and Webtop warns
+  that no password means no auth. A host-local default (reach it by =ssh -L=) is safer on shared
+  VMs.
+- *A persistent home option*, as Webtop's =/config= and braughtg's documented volume mount: a
+  =containerManage.sh= switch, or a compose volume, so that =delete= need not lose the user's home.
+- *A =devcontainer.json= per leaf*, so VS Code, DevPod and Coder can open a leaf directly.
+- *KasmVNC instead of TigerVNC + noVNC*: one port and a better browser experience, as Webtop and
+  Kasm use.
+- *One matrix description*, as =MOLECULE_DISTRO= drives bsmeding's images: generate leaves (or the
+  port table) from one list of releases × profiles × instances instead of copying directories.
+- *An Incus profile*, for hosts where a system container is the better fit than =--privileged=.
+
+* Method and Limits
+
+- Date: 2026-10-26. Method: about fourteen web searches (VNC desktop images, browser desktops and
+  streaming platforms, systemd test images, GUI runners, system containers, dev-container specs,
+  rootless podman and Quadlet, the braughtg upstream).
+- Sources are mostly the projects' own pages and third-party guides, not independent reviews. Some
+  details (for example Kasm's streaming protocol and Community Edition limits) differed between
+  sources and are not repeated here.
+- Not covered: commercial VDI products, Kubernetes-native desktop operators, and anything published
+  after the survey date.
+- To update: re-run the survey, change the date at the top, and keep superseded findings in git
+  history rather than in this file.
+
+# Local Variables:
+# eval: (setq-local toc-org-max-depth 3)
+# End:

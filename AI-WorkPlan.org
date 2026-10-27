@@ -363,14 +363,235 @@ build either confined leaf today. =containerProc_imageBuild= needs the same
 pre-build copy step. Until then the bash path is the *only* working way to
 build the confined images --- on any host, not just RedHat.
 
+*Superseded (2026-10-26):* =build.bash= became =imageBuild.sh= and =run.bash= was replaced by
+=containerManage.sh=, identical in all leaves (=bisos.dockerProc= =AI-WorkPlan.org= [[6.1]]). The
+blocker above is fixed: =containerProc_imageBuild= copies =common/raw-bisos= since that package's
+9.2.
+
 ** TODO [#B]  Verify them on an old RedHat VM (no BISOS) :me:
 SCHEDULED:<2026-09-03 Thu 14:49>
 Verify them on an old RedHat VM (no BISOS), which is their actual target
   environment --- not just on a Debian BISOS host, where the =.spcs= path is
   also available and can mask a broken bash path.
 ----- AI Results: ------
+Now planned as Stage 7 below ([[7.0]]--[[7.5]], RHEL 8, cgroup v1, standalone way).
 
 
+** -
+
+
+* Stage 6: Testing on a Debian 13 VM (cgroup v2) --- Both Ways
+
+Goal: run on a real *Debian 13 VM with cgroup v2* everything that was built and tested only
+against fake engines in a container (2026-10-26; see "Where the work was done" below), and
+record what works and what does not. The tester is a fresh Claude on that VM; this stage is
+self-contained for them.
+
+** For the Claude doing this stage --- read first
+
+- *What is new and untested on a daemon* (all 2026-10-26):
+  - Standalone way (this repo): =imageBuild.sh= and =containerManage.sh= --- identical in all 7
+    leaves; checks before create (name, ports, image, cgroup v1 subnet); rootless leaves via
+    podman, name and ports from the Quadlet =*.container=; the =vncPassword set|clear= verb.
+    Images: =LABEL org.bisos.hubImage/hubTag=; =/usr/local/bin/vncStart.sh= (VNC password
+    optional, none by default), called by the confined =entrypoint.sh= and every
+    =vncserver.service=. Ports: deb13-fresh 2228/5907/6907; sysd-2 2227/5906/6906.
+  - With BISOS: =bisos.dockerProc= (planted =dockerProc.spcs= / =podmanProc.spcs=) --- instance
+    checks, cgroup v2 only, the numeric-suffix rule (sysd-2 runs sysd's image), VNC password
+    command, staleness checks, and the *generic lifecycle verbs from =bisos.fileObj=*
+    (=fto_prepare=, =fto_materialize=, =fto_reMaterialize=, =fto_unMaterialize=, =fto_clean=,
+    =fto_verify=, =fto_status=; gate =<leaf>/dockerProc.control=, log =dockerProc.status=;
+    at a branch the same names walk and summarize).
+- *Where the work was done (read for detail):* =/bisos/git/bxRepos/bisos-pip/dockerProc/AI-WorkPlan.org=
+  (Stages 6--10), =/bisos/git/bxRepos/bisos-pip/fileObj/README.org= ("Generic Lifecycle Verbs"),
+  this repo's =README.org= and each leaf's =README.org=.
+- *Rules:* record every result under the TODO's "AI Results" --- commands run, what happened,
+  pass/fail. Small, obvious bugs in a script may be fixed in place if the fix is recorded with
+  the result; anything larger: record it and stop that TODO. Do not commit or push. Gate and
+  status files (=*Proc.control=, =*Proc.status=) are git-ignored; =git status= must stay clean of
+  them. Clean up containers at the end (6.7).
+
+* Stage 6 TODOs
+
+** +
+** TODO [#A] <<6.0>> Setup and host check :aiAndMe:
+- Host: =stat -fc %T /sys/fs/cgroup= → =cgroup2fs=; =docker info= works for this user;
+  =docker compose version= (or =docker-compose=); =podman --version= (5.x expected on Debian 13);
+  user delegation: =cat /sys/fs/cgroup/user.slice/user-$(id -u).slice/user@$(id -u).service/cgroup.controllers=
+  lists =cpu io memory pids=; not inside a container (no =/.dockerenv=).
+- Code: the 2026-10-26 commits of bro_dockerfiles, bisos.fileObj and bisos.dockerProc are on this
+  VM (pull); reinstall the two packages editable (=pypiProc.sh -v -n showRun -i pkgReInstall edit
+  /bisos/venv/py3/bisos3= in each =py3/=). Check: =grep -c ftoLeaf_csu
+  /bisos/git/bxRepos/bisos-pip/dockerProc/py3/bin/containerProc-seed.cs= ≥ 2 (list + import);
+  =python -c "import bisos.fileObj.ftoLeaf_csu"= works.
+- Ports free: 2222--2228, 5901--5907, 6901--6907 (=ss -ltn=).
+----- AI Results: ------
+
+** TODO [#A] <<6.1>> Build the images --- standalone =imageBuild.sh= :ai:
+In this order (each =FROM= the previous):
+: cd debian/13/confined/vnc/xfce/bisos_deb13-fresh && ./imageBuild.sh
+: cd ../../../../privileged/vnc/xfce/bisos_deb13-sysd && ./imageBuild.sh
+: cd ../bisos_deb13-sysd-2 && ./imageBuild.sh          # must build nothing, print sysd's command
+: cd ../../../../rootless-sysd/vnc/xfce/bisos_deb13-rootless-sysd && ./imageBuild.sh   # podman
+Check: =raw-bisos/= was copied into the confined leaf (and is git-ignored);
+=docker image inspect bisos_deb13-fresh -f '{{json .Config.Labels}}'= shows =org.bisos.hubImage=;
+=docker run --rm --entrypoint test bisos_deb13-sysd -x /usr/local/bin/vncStart.sh && echo ok=; the
+rootless build put =bisos_deb13-fresh= into podman's store too. Then the same for =debian/12/=
+(Debian 12 images on this Debian 13 host).
+----- AI Results: ------
+
+** TODO [#A] <<6.2>> Standalone =containerManage.sh= --- every verb, every check :ai:
+For each leaf of =debian/13/= (then =debian/12/=): =-n create= (prints, changes nothing), =create=,
+=start=, =status=, =./verify.sh= (sysd and rootless leaves), =restart=, =stop=, =delete=. Expect:
+cgroup =v2 -> docker-compose.yml= (privileged), =docker-compose.yml= (confined),
+=bisos-...container= (rootless); "VNC auth: none".
+Checks that must refuse (and change nothing):
+- =create= twice → "already exists".
+- A host port in use: =python3 -m http.server 2224 &= then =create= in deb13-sysd → names port
+  2224; kill the server afterwards.
+- Image missing: in a leaf whose image is not built (or after =docker rmi=) → names =imageBuild.sh=;
+  in sysd-2 → names =( cd ../bisos_deb13-sysd && ./imageBuild.sh )=.
+Side by side: deb13-sysd and deb13-sysd-2 created and started together; both pass =verify.sh=;
+=delete= in sysd-2 leaves sysd running. Rootless: the container name is =bisos_deb13-rootless-sysd=
+(from the Quadlet file), ports 2226/5905/6905. deb13-fresh answers on 2228 (ssh) / 6907 (noVNC).
+----- AI Results: ------
+
+** TODO [#A] <<6.3>> VNC passwords --- standalone :ai:
+With a running deb13-sysd (and one rootless leaf):
+- No password (default): the VNC server offers security type 1 (None). Probe the RFB handshake:
+  : python3 -c "import socket;s=socket.create_connection(('localhost',5903));v=s.recv(12);s.send(v);n=s.recv(1)[0];print(v,list(s.recv(n)))"
+  → =[1]=.
+- =./containerManage.sh vncPassword set= (type a password twice) → restarts; =status= shows "VNC
+  auth: password"; the probe now prints =[2]= (VncAuth). Over SSH: =ls -l
+  ~/.config/bisosVncPasswd= is owned by =bystar=, mode 0600.
+- Survives =restart=; =vncPassword clear= → back to =[1]=; lost on =delete= + =create=.
+- Refusals: empty password; differing passwords; =-n vncPassword set= asks nothing.
+- If a desktop is at hand (:me:): a VNC viewer and noVNC (=http://localhost:6903/=) prompt for
+  the password, refuse a wrong one, and accept the right one.
+----- AI Results: ------
+
+** TODO [#A] <<6.4>> With BISOS --- one leaf at a time (=dockerProc.spcs= / =podmanProc.spcs=) :ai:
+In deb13-sysd, deb13-sysd-2 and deb13-rootless-sysd (=./dockerProc.spcs= / =./podmanProc.spcs=
+with no arguments shows the menu --- check it has "FTO Lifecycle Verbs" and "Staleness"):
+- =-i containerProc_instanceUp=: refuses while the standalone container of the same name exists
+  ("already running" is fine if it is running); refuses with a port in use; refuses with no image.
+  Then up; =-i containerProc_instanceVerify=; =-i containerProc_instanceStatus= (shows "VNC auth").
+- sysd-2: =-i containerProc_imageBuild= builds nothing; =instanceUp= creates
+  =bisos_deb13-sysd-2= from =bisos_deb13-sysd:latest= on 2227/5906/6906 (=docker ps=).
+- =-i containerProc_instanceDown=, =-i containerProc_instanceRestart=, =-i
+  containerProc_instanceDelete=; =Down= / =Restart= refuse when the instance does not exist.
+- =-i containerProc_instanceVncPassword set= / =clear= (same checks as 6.3).
+- A deprecated alias dispatches: =-i containerProc_build= (warns, builds).
+----- AI Results: ------
+
+** TODO [#A] <<6.5>> With BISOS --- the lifecycle walks from =debian/13/= :ai:
+: cd debian/13
+- =./ftoBranchProc.spcs= (menu: a "Lifecycle Verbs" chapter); =-i fto_control= → every leaf
+  =available (no gate file: default)=.
+- =-i fto_prepare= → order confined, privileged, rootless-sysd; a summary per branch; sysd-2 "No
+  image of its own". Then =-i fto_forwardToLeaves --cmndName=containerProc_imageIsStale= →
+  =current= everywhere.
+- Gate mix: =(cd privileged && ./ftoBranchProc.spcs -i fto_enable)=; in the rootless leaf
+  =./podmanProc.spcs -i fto_disable=; confined stays available. =-i fto_materialize= → sysd and
+  sysd-2 up; confined skipped; rootless skipped.
+- Stale: set a VNC password on deb13-sysd (=containerProc_instanceVncPassword set=); rebuild its
+  image (=cd privileged/vnc/xfce/bisos_deb13-sysd && ./dockerProc.spcs -i containerProc_imageBuild
+  --noCache=true=); =-i fto_forwardToLeaves --cmndName=containerProc_instanceIsStale= → sysd and
+  sysd-2 =stale=. =-i fto_reMaterialize= → both re-created; the VNC password is still set on
+  deb13-sysd (probe =[2]=); =/shuttle/this= content intact.
+- =-i fto_verify=, =-i fto_status=, =-i fto_statusLog= (one line per run, matching the summaries).
+- =-i fto_clean= with instances up → refused in deb13-sysd ("containers still use"); =-i
+  fto_unMaterialize= → the enabled leaves' instances (sysd, sysd-2) deleted; =-i fto_clean= again →
+  deb13-sysd's image removed, sysd-2 "nothing to clean" (secondary), confined and rootless skipped
+  (not enabled) --- so confined's copied =raw-bisos/= stays.
+- =git status= in the clone: no =*Proc.control= / =*Proc.status=.
+----- AI Results: ------
+
+** TODO [#B] <<6.6>> cgroup / host refusals (cheap checks) :ai:
+- Inside a container (e.g. =docker exec= into a running sysd instance with this repo mounted at
+  =/shuttle/this=): =imageBuild.sh=, =containerManage.sh= and a =dockerProc.spcs= command refuse
+  with "inside a container".
+----- AI Results: ------
+
+** TODO [#A] <<6.7>> Clean up and report :aiAndMe:
+Delete every container created (=containerManage.sh delete= / =containerProc_instanceDelete=);
+=fto_available= at =debian/13/= (or remove the gate files); keep or remove the images as the user
+prefers. Summarize: what passed, what failed (with output), what was fixed in place, open
+questions --- here, and a one-paragraph summary at the top of this TODO's results for the
+session that resumes in bisos.dockerProc.
+----- AI Results: ------
+** -
+
+
+* Stage 7: Testing on the RHEL 8 VM (cgroup v1) --- Standalone Way
+
+Goal: test on the *RHEL 8 work host (cgroup v1, docker, no BISOS)* --- the actual target of the
+standalone way --- everything that applies there: the docker leaves on cgroup v1, the cgroup v1
+compose files and subnets, the refusals, VNC passwords. Rootless-sysd cannot run on cgroup v1 and
+bisos.dockerProc is cgroup v2 only; both are tested only as refusals. The tester is a fresh
+Claude on that host; this stage is self-contained for them.
+
+** For the Claude doing this stage --- read first
+
+- Read Stage 6's "For the Claude doing this stage" (what is new; the rules) and this file's
+  Stage 4 ("RHEL 8.10 specifics", "Determining whether =--privileged= is allowed").
+- On this host there is no BISOS: only this repo (cloned, or copied) and docker. Everything here
+  is =imageBuild.sh=, =containerManage.sh=, =verify.sh=.
+- cgroup v1 specifics to watch: the privileged leaves run from =docker-compose.cgv1.yml=, each with
+  its own bridge network on an explicit subnet --- deb12-sysd =172.16.11.0/24=, deb13-sysd
+  =172.16.12.0/24=, deb13-sysd-2 =172.16.13.0/24=; =containerManage.sh create= refuses a subnet
+  that overlaps a docker network or host route.
+- Same rules as Stage 6: record results under each TODO; small fixes in place, recorded; no commit
+  or push; clean up at the end.
+
+* Stage 7 TODOs
+
+** +
+** TODO [#A] <<7.0>> Setup and host check :aiAndMe:
+- =stat -fc %T /sys/fs/cgroup= → =tmpfs= (v1/hybrid); =docker info=; =docker compose version= or
+  =docker-compose --version= (v1 binary is fine); =--privileged= permitted (Stage 4: the =PRIV_OK=
+  test); not inside a container.
+- This repo at the 2026-10-26 commit (=git pull=, or copy the tree). Ports free as in 6.0.
+- =ip -4 route= and =docker network ls= --- note anything in =172.16.0.0/16=.
+----- AI Results: ------
+
+** TODO [#A] <<7.1>> Build the docker images :ai:
+Confined then privileged, for =debian/13/= and =debian/12/=, with =./imageBuild.sh= (sysd-2 must
+build nothing). Checks as in 6.1 (=raw-bisos/= copied, LABEL, =vncStart.sh= present). Note
+anything RHEL-specific (SELinux labels on bind mounts, docker version, buildx absence for =-u=).
+----- AI Results: ------
+
+** TODO [#A] <<7.2>> =containerManage.sh= on cgroup v1 :ai:
+- Privileged leaves: =status= / =-n create= say =cgroup: v1 -> docker-compose.cgv1.yml= and the
+  subnet; =create=, =start=, =./verify.sh= (systemd PID 1, services active), =status=, =restart=,
+  =stop=, =delete= --- for deb13-sysd, deb13-sysd-2 (side by side with sysd: both pass verify;
+  distinct networks =bisos_deb13_cgv1= / =bisos_deb13_sysd2_cgv1=) and deb12-sysd (its new
+  =172.16.11.0/24= network).
+- Subnet refusal: =docker network create --subnet 172.16.12.0/24 clash= then =create= in deb13-sysd
+  → "subnet ... is not free", names =clash=; =docker network rm clash=. Re-=create= after =delete=
+  works (its own leftover network is not a conflict).
+- Confined leaves: =docker-compose.yml= on v1, create/start/stop/delete; deb13-fresh on 2228/6907.
+- Other refusals: already exists; port in use; image missing (as in 6.2).
+----- AI Results: ------
+
+** TODO [#A] <<7.3>> Refusals that are by design on cgroup v1 :ai:
+- A rootless-sysd leaf: =./containerManage.sh status= → "host is cgroup v1 ... use a privileged
+  leaf"; =./imageBuild.sh= needs podman (likely absent: "podman is not installed").
+- If BISOS happens to be installed: any =dockerProc.spcs -i containerProc_instanceUp= →
+  "this host is on cgroup v1 ... use the leaf's standalone ./imageBuild.sh and
+  ./containerManage.sh". (Otherwise: skip, note it.)
+----- AI Results: ------
+
+** TODO [#A] <<7.4>> VNC passwords on cgroup v1 :ai:
+As 6.3, with deb13-sysd (VNC 5903) and deb13-fresh (VNC 5907, confined: =vncStart.sh= via its
+=entrypoint.sh=): none by default (=[1]=), =set= → =[2]=, survives =restart=, =clear= → =[1]=.
+----- AI Results: ------
+
+** TODO [#A] <<7.5>> Clean up and report :aiAndMe:
+As 6.7: delete every container and test network; keep or remove the images as the user prefers;
+summarize (passed / failed with output / fixed in place / open questions), with a one-paragraph
+summary at the top for the session that resumes in bisos.dockerProc.
+----- AI Results: ------
 ** -
 
 

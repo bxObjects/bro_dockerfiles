@@ -54,3 +54,6 @@ RUN systemctl enable vncserver novnc sshd-container dbus tmp-exec dev-shm-resize
 # systemd is PID 1.
 STOPSIGNAL SIGRTMIN+3
 ENTRYPOINT ["/sbin/init"]
+
+# DockerHub name and tag, used only by ./imageBuild.sh -u (upload).
+LABEL org.bisos.hubImage="bisos/deb12-sysd-vnc-xfce" org.bisos.hubTag="1"

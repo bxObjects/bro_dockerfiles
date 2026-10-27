@@ -36,16 +36,20 @@ same names and ports. They are kept at parity.
 
 * Files in This Leaf
 
-| File                      | Purpose                                                                  |
-|---------------------------+--------------------------------------------------------------------------|
-| =Dockerfile=              | The image: systemd as PID 1, the vncserver, novnc and sshd units.        |
-| =dockerConf/=             | systemd unit files copied into the image.                                |
-| =docker-compose.yml=      | How to run the container on a *cgroup v2* host.                          |
-| =docker-compose.cgv1.yml= | How to run the container on a *cgroup v1* host.                          |
-| =imageBuild.sh=           | Standalone: build the image.                                             |
-| =containerManage.sh=      | Standalone: create, start, stop, restart, delete the container.          |
-| =verify.sh=               | Standalone: smoke-test a running container.                              |
-| =dockerProc.spcs=         | With BISOS: the planted =bisos.dockerProc= command.                      |
+| File                      | Purpose                                                           |
+|---------------------------+-------------------------------------------------------------------|
+| =Dockerfile=              | The image: systemd as PID 1, the vncserver, novnc and sshd units. |
+| =dockerConf/=             | systemd unit files copied into the image.                         |
+| =docker-compose.yml=      | How to run the container on a *cgroup v2* host.                   |
+| =docker-compose.cgv1.yml= | How to run the container on a *cgroup v1* host.                   |
+| =imageBuild.sh=           | Standalone: build the image.                                      |
+| =containerManage.sh=      | Standalone: create, start, stop, restart, delete the container.   |
+| =verify.sh=               | Standalone: smoke-test a running container.                       |
+| =dockerProc.spcs=         | With BISOS: the planted =bisos.dockerProc= command.               |
+
+=imageBuild.sh= and =containerManage.sh= are the same files in every leaf of bro_dockerfiles. They
+derive what they need from the leaf: its path (image name, engine), its =Dockerfile= (base image,
+DockerHub name), and its compose or Quadlet file (container name, ports, subnet).
 
 ** The two compose files
 
@@ -55,8 +59,9 @@ container:
 
 - =docker-compose.yml= (cgroup v2): =cgroup: host= and =/sys/fs/cgroup= mounted read-write.
 - =docker-compose.cgv1.yml= (cgroup v1): no =cgroup: host=; =/sys/fs/cgroup= mounted read-only with
-  only its =systemd= subtree read-write. It also gives the container its own bridge network on an
-  explicit subnet (=10.254.13.0/24=), for hosts whose default address pools are exhausted.
+  only its =systemd= subtree read-write. It also gives the container its own bridge network,
+  =bisos_deb13_cgv1=, on an explicit subnet (=172.16.12.0/24=), for hosts whose default address pools are
+  exhausted. That subnet must be free on the host and distinct from every other instance's.
 
 Both name the image =bisos_deb13-sysd:latest= and the container =bisos_deb13-sysd=, run it
 privileged, and publish the same host ports (see [[*Ports and Connecting][Ports and Connecting]]).
@@ -83,6 +88,8 @@ directory.
 
 The image is tagged =bisos_deb13-sysd:latest=. If its base, =bisos_deb13-fresh:latest=, is not in
 docker's local store, the script stops and prints the command that builds it in the confined leaf.
+=-u= pushes the image named by the =org.bisos.hubImage= and =org.bisos.hubTag= labels at the end of
+the =Dockerfile=.
 
 ** Managing the container: =containerManage.sh=
 
@@ -90,14 +97,15 @@ docker's local store, the script stops and prints the command that builds it in 
 ./containerManage.sh [-n] <create|start|stop|restart|delete|status>
 #+END_SRC
 
-| Verb      | Does                                                         | Compose command            |
-|-----------+--------------------------------------------------------------+----------------------------|
-| =create=  | Create the container, not started.                           | =up --no-start --no-build= |
-| =start=   | Start it.                                                    | =start=                    |
-| =stop=    | Stop it. The container and its writable layer are kept.      | =stop=                     |
-| =restart= | Stop then start it.                                          | =restart=                  |
-| =delete=  | Remove container + network. Writable layer lost, image kept. | =down=                     |
-| =status=  | Show cgroup version, compose file, state and host ports.     | =ps=                       |
+| Verb          | Does                                                         | Compose command            |
+|---------------+--------------------------------------------------------------+----------------------------|
+| =create=      | Create the container, not started.                           | =up --no-start --no-build= |
+| =start=       | Start it.                                                    | =start=                    |
+| =stop=        | Stop it. The container and its writable layer are kept.      | =stop=                     |
+| =restart=     | Stop then start it.                                          | =restart=                  |
+| =delete=      | Remove container + network. Writable layer lost, image kept. | =down=                     |
+| =status=      | Show cgroup version, compose file, state and host ports.     | =ps=                       |
+| =vncPassword= | =set= or =clear= the VNC password (see below).               | =cp=, =restart=            |
 
 Before =create=, the script checks that the container does not already exist, that none of its host
 ports is in use, that on cgroup v1 the compose network's subnet overlaps no other docker network and
@@ -111,26 +119,49 @@ not executed:
 ./containerManage.sh -n create
 #+END_SRC
 
-The container name, image and host ports are read from the selected compose file, so the compose
-files stay the one place where they are set.
+The container name, image, host ports and subnet are read from the selected compose file, so the
+compose files stay the one place where they are set.
 
 A first run:
 
 #+BEGIN_SRC bash
-( cd ../../../../confined/vnc/xfce/bisos_deb13-fresh && ./build.bash )   # base image, once
+( cd ../../../../confined/vnc/xfce/bisos_deb13-fresh && ./imageBuild.sh )   # base image, once
 ./imageBuild.sh
 ./containerManage.sh create
 ./containerManage.sh start
 ./verify.sh
 #+END_SRC
 
+** VNC password (optional)
+
+VNC and noVNC have *no password by default*: convenient for local development, and nothing to
+do. To require one for this instance:
+
+#+BEGIN_SRC bash
+./containerManage.sh vncPassword set      # asks twice; restarts the container if running
+./containerManage.sh status               # shows "VNC auth: password"
+./containerManage.sh vncPassword clear    # back to no password
+#+END_SRC
+
+VNC viewers and noVNC then ask for it. The password is kept in the container
+(=/home/bystar/.config/bisosVncPasswd=), so it survives stop and restart and is lost on =delete=.
+Only its first 8 characters count, and VNC traffic is not encrypted: across a network, use an SSH
+tunnel. With BISOS the same is =containerProc_instanceVncPassword set= / =clear=.
+
 * Ports and Connecting
 
-| Service | Host port | Container port | Connect with                         |
-|---------+-----------+----------------+--------------------------------------|
-| SSH     |      2224 |             22 | =ssh -p 2224 <user>@localhost=       |
-| VNC     |      5903 |           5901 | a VNC client at =localhost:5903=     |
+| Service | Host port | Container port | Connect with                          |
+|---------+-----------+----------------+---------------------------------------|
+| SSH     |      2224 |             22 | =ssh -p 2224 <user>@localhost=        |
+| VNC     |      5903 |           5901 | a VNC client at =localhost:5903=      |
 | noVNC   |      6903 |           6901 | a browser at =http://localhost:6903/= |
+
+The user is =bystar=, password =insecure= (the =USERNAME= and =PASSWD= =ARG=s of the confined
+=Dockerfile=, inherited by the sysd images). Over VNC and noVNC the user is logged in already; the
+password is needed for =sudo= and for SSH (it is not a VNC password: see above). A VNC client gives
+a better experience than noVNC; with noVNC, copy and paste between host and container goes through
+the clipboard of the noVNC side menu, and "Scaling Mode: Remote Resizing" in its settings makes the
+desktop follow the browser window.
 
 * Verifying: =verify.sh=
 
@@ -147,6 +178,8 @@ non-zero if any check fails.
 
 * With BISOS
 
-On a BISOS platform with =bisos.dockerProc= installed, =./dockerProc.spcs= with no arguments lists
-its commands for this leaf. See the =bisos.dockerProc= README
-([[https://github.com/bisos-pip/dockerProc]]).
+On a BISOS platform with =bisos.dockerProc= installed, =./dockerProc.spcs= with no arguments lists its
+commands for this leaf. =containerProc_instanceUp= makes the same checks as
+=containerManage.sh create=. =bisos.dockerProc= supports cgroup v2 hosts only: on a cgroup v1
+host its commands refuse to run, so use the standalone scripts there. See the =bisos.dockerProc=
+README ([[https://github.com/bisos-pip/dockerProc]]).

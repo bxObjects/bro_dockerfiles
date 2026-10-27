@@ -8,12 +8,12 @@ sudo /usr/sbin/sshd -D &
 rm /tmp/.X11-unix/X1
 rm /tmp/.X1-lock
 
-# Launch the VNC server
-vncserver \
+# Launch the VNC server: no password by default, or the instance's VNC password
+# if one has been set (see /usr/local/bin/vncStart.sh).
+/usr/local/bin/vncStart.sh \
   -localhost no \
   -geometry 1920x1080 \
-  -depth 16 \
-  -SecurityTypes None --I-KNOW-THIS-IS-INSECURE
+  -depth 16
 
 # Launch the noVNC server.
 websockify -D --web=/usr/share/novnc 6901 localhost:5901 &

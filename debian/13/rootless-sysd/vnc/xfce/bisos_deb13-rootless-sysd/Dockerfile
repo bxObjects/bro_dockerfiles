@@ -10,7 +10,7 @@
 # subtree delegation and tmpfs mounts systemd needs, all inside the user
 # namespace. Container root == the engineer's mapped unprivileged host UID.
 #
-# See run.bash / the Quadlet unit for the run-time configuration.
+# See ./containerManage.sh / the Quadlet unit for the run-time configuration.
 
 FROM bisos_deb13-fresh:latest
 
@@ -60,3 +60,6 @@ RUN systemctl enable vncserver novnc sshd-container dbus
 # systemd is PID 1.
 STOPSIGNAL SIGRTMIN+3
 ENTRYPOINT ["/sbin/init"]
+
+# DockerHub name and tag, used only by ./imageBuild.sh -u (upload).
+LABEL org.bisos.hubImage="bisos/deb13-rootless-sysd-vnc-xfce" org.bisos.hubTag="1"

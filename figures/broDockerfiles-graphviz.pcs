@@ -21,14 +21,16 @@ Vertical arrows within each row show FROM inheritance:
 
 External base images (debian:12.12, debian:13.1) sit above the confined column.
 
-Below the grid, two build/verify paths are shown as destination boxes:
-  1. Bash path (standalone, no BISOS) --- build.bash / verify.sh / docker-compose / run.bash
-  2. .spcs path (framework) --- dockerProc.spcs / podmanProc.spcs delegating to bisos.dockerProc
-Both are permanent peers, maintained at parity; the bash path is the only
-one available on hosts without BISOS (e.g. the old RedHat VMs).
+The deb13 privileged row also has bisos_deb13-sysd-2, a second instance of the
+bisos_deb13-sysd image (numeric suffix = shared image; dashed "same image" edge).
+
+Two boxes show the two ways to use every leaf, peers kept at parity:
+  1. Standalone (docker / podman only) --- imageBuild.sh / containerManage.sh / verify.sh
+  2. With BISOS --- dockerProc.spcs / podmanProc.spcs delegating to bisos.dockerProc
 
 bisos.dockerProc (external package) is shown on the right, planting the
-.spcs files into every leaf.
+.spcs files into every leaf. Ports are not shown; the README's port table is
+the one place for them.
 #+end_org """
 
 from bisos import b
@@ -92,11 +94,11 @@ def repoStructureAtAGlance(
     #   lightsteelblue  = confined leaves
     #   mistyrose       = privileged leaves
     #   khaki1          = rootless-sysd leaves (differentiate from privileged)
-    #   lightyellow     = bash path box (standalone --- no BISOS required)
-    #   darkseagreen3   = .spcs path box (framework --- needs bisos.dockerProc)
+    #   lightyellow     = standalone box (docker / podman only)
+    #   darkseagreen3   = with-BISOS box (needs bisos.dockerProc)
     #   solid FROM edge = image inheritance
     #   dotted edge     = ".spcs planted here" (from bisos.dockerProc to leaves)
-    #   dashed edge     = "operates on" (path box to leaves)
+    #   dashed edge     = "same image" (primary leaf to its numbered instance)
 
     # ==================================================================
     # Row 0: External Debian base images
@@ -117,13 +119,13 @@ def repoStructureAtAGlance(
     with d.subgraph() as s:
         s.attr(rank='same')
         s.node('deb12_confined',
-               'deb12/confined/\nbisos_deb12-fresh\nssh:2222 vnc:5901',
+               'deb12/confined/\nbisos_deb12-fresh',
                shape='box3d', style='filled', fillcolor='lightsteelblue')
         s.node('deb12_privileged',
-               'deb12/privileged/\nbisos_deb12-sysd\nssh:2223 vnc:5902',
+               'deb12/privileged/\nbisos_deb12-sysd',
                shape='box3d', style='filled', fillcolor='mistyrose')
         s.node('deb12_rootless',
-               'deb12/rootless-sysd/\nbisos_deb12-rootless-sysd\nssh:2225 vnc:5904',
+               'deb12/rootless-sysd/\nbisos_deb12-rootless-sysd',
                shape='box3d', style='filled', fillcolor='khaki1')
         # Invisible column-order edges (drawn as FROM-labeled visible edges below)
         s.edge('deb12_confined', 'deb12_privileged', style='invis')
@@ -135,16 +137,20 @@ def repoStructureAtAGlance(
     with d.subgraph() as s:
         s.attr(rank='same')
         s.node('deb13_confined',
-               'deb13/confined/\nbisos_deb13-fresh\nssh:2222 vnc:5901',
+               'deb13/confined/\nbisos_deb13-fresh',
                shape='box3d', style='filled', fillcolor='lightsteelblue')
         s.node('deb13_privileged',
-               'deb13/privileged/\nbisos_deb13-sysd\nssh:2224 vnc:5903',
+               'deb13/privileged/\nbisos_deb13-sysd',
                shape='box3d', style='filled', fillcolor='mistyrose')
         s.node('deb13_rootless',
-               'deb13/rootless-sysd/\nbisos_deb13-rootless-sysd\nssh:2226 vnc:5905',
+               'deb13/rootless-sysd/\nbisos_deb13-rootless-sysd',
                shape='box3d', style='filled', fillcolor='khaki1')
+        s.node('deb13_privileged2',
+               'deb13/privileged/\nbisos_deb13-sysd-2\n(instance 2, no image)',
+               shape='box3d', style='filled,dashed', fillcolor='mistyrose')
         s.edge('deb13_confined', 'deb13_privileged', style='invis')
-        s.edge('deb13_privileged', 'deb13_rootless', style='invis')
+        s.edge('deb13_privileged', 'deb13_privileged2', style='invis')
+        s.edge('deb13_privileged2', 'deb13_rootless', style='invis')
 
     # ==================================================================
     # FROM inheritance edges (base -> confined -> privileged & rootless-sysd)
@@ -168,8 +174,12 @@ def repoStructureAtAGlance(
     d.edge('deb13_confined', 'deb13_privileged',
            label='FROM', fontsize='10',
            constraint='false', dir='forward')
-    d.edge('deb13_privileged', 'deb13_rootless',
-           label='(same FROM)', fontsize='9', fontcolor='gray40',
+    d.edge('deb13_privileged', 'deb13_privileged2',
+           label='same image', fontsize='9', fontcolor='gray40',
+           style='dashed', dir='forward',
+           constraint='false')
+    d.edge('deb13_privileged2', 'deb13_rootless',
+           label='(same FROM as sysd)', fontsize='9', fontcolor='gray40',
            style='dotted', arrowhead='none',
            constraint='false')
 
@@ -179,13 +189,13 @@ def repoStructureAtAGlance(
     with d.subgraph() as s:
         s.attr(rank='same')
         s.node('path_bash',
-               'Bash Path (standalone)\n\nbuild.bash\nverify.sh\ndocker compose up\nrun.bash (rootless)\n\n(no BISOS required)',
+               'Standalone\n(docker / podman only)\n\nimageBuild.sh\ncontainerManage.sh\nverify.sh\n(identical in every leaf)',
                shape='rectangle',
                style='filled',
                fillcolor='lightyellow',
                margin='0.25,0.2')
         s.node('path_spcs',
-               '.spcs Path (framework)\n\ndockerProc.spcs (docker)\npodmanProc.spcs (rootless)\n-i containerProc_imageBuild\n-i containerProc_instanceUp\n-i containerProc_instanceVerify\n-i containerProc_fullClean',
+               'With BISOS\n(bisos.dockerProc)\n\ndockerProc.spcs (docker)\npodmanProc.spcs (rootless)\n-i containerProc_imageBuild\n-i containerProc_instanceUp\n-i containerProc_instanceVerify\n-i containerProc_fullClean',
                shape='rectangle',
                style='filled',
                fillcolor='darkseagreen3',
@@ -196,24 +206,6 @@ def repoStructureAtAGlance(
                style='filled,bold',
                fillcolor='thistle',
                margin='0.2,0.15')
-
-    # ==================================================================
-    # Path -> leaves ("operates on") edges
-    # ==================================================================
-    # A single representative edge per path per row keeps the figure legible;
-    # the invariant is stated in the caption ("every leaf supports both paths").
-
-    d.edge('path_bash', 'deb12_confined',
-           style='dashed', arrowhead='vee',
-           label='operates on\nany leaf', fontsize='10',
-           color='gray50', fontcolor='gray50',
-           constraint='false')
-
-    d.edge('path_spcs', 'deb13_rootless',
-           style='dashed', arrowhead='vee',
-           label='operates on\nany leaf', fontsize='10',
-           color='gray50', fontcolor='gray50',
-           constraint='false')
 
     # ==================================================================
     # bisos.dockerProc -> .spcs files ("plants") edge

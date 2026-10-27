@@ -32,262 +32,179 @@ sysd leaves so Chrome/Chromium run. Next Claude: consult and update it alongside
 
 * Current State
 
-As of 2026-08-10. All Stage 1--4 TODOs complete. Two post-Stage-4 fixes applied
-and verified: =bystar= home directory permissions (700→755) and =/tmp= noexec
-removed via a =tmp-exec.service= systemd oneshot. Both confirmed on RHEL 8.10
-(cgroup v1) and on Debian hosts. README.org updated to reflect both fixes.
+As of 2026-10-27. Seven leaves (deb12/deb13 × confined/privileged/rootless-sysd, plus
+=bisos_deb13-sysd-2=), each usable in *two permanent ways at parity*: *standalone* (=imageBuild.sh=,
+=containerManage.sh=, =verify.sh=, docker/podman only --- the only way on the old RedHat VMs) and
+*with BISOS* (the planted =dockerProc.spcs= / =podmanProc.spcs= of =bisos.dockerProc=, plus the
+=bisos.fileObj= walker). With BISOS the tree is the test matrix of RawBisos-Reconstruction, BISOS's
+CI/CD (README section of that name).
 
-Stage 5 planting is complete. =dockerProc.spcs= is planted in all four docker
-leaves (deb12/13 × confined/privileged) and =podmanProc.spcs= in both rootless-sysd
-leaves. All six paths derive correct parameters from their directory location via
-=bisos.dockerProc.containerProc_seedInfo.paramsFromPlantPath()=. The per-leaf bash
-scripts (=build.bash=, =verify.sh=, =run.bash=, =docker-compose.yml=) are a
-*permanent standalone peer* of the spcs path --- they require no BISOS install and
-are the only path that works on hosts without BISOS (notably the old RedHat VMs).
-They are maintained at parity with the spcs path, not phased out.
+Work of 2026-10-25..27 (all *uncommitted*; authored in a container on a cgroup v1 host, *not run
+on a daemon* except =bisos_deb13-sysd= / =-sysd-2= standalone, which the user verified on RHEL 8
+(v1) and Debian 13 (v2) before propagation):
+- Standalone scripts propagated to all 7 leaves, byte-identical, everything derived from the leaf
+  (=imageBuild.sh= = renamed =build.bash=; =containerManage.sh= new; =run.bash= removed). Recorded
+  in =bisos.dockerProc='s =AI-WorkPlan.org= [[6.1]] (that is where Stage 6 of this work was driven).
+- Optional VNC passwords (=dockerConf/vncStart.sh= in the confined images, called by every
+  =entrypoint.sh= / =vncserver.service=; =containerManage.sh vncPassword set|clear=). Requires
+  rebuilding all images. =bisos.dockerProc= Stage 8.
+- Gated, ordered walks with BISOS: =debian/13/ftoBranchProc.spcs= walks
+  =[confined, privileged, rootless-sysd]=; gate/log files =*Proc.control= / =*Proc.status=
+  git-ignored. =bisos.dockerProc= Stages 9--10, =bisos.fileObj= Stage 4.
+- README.org restructured (standalone vs BISOS; sections "Walking the Tree: Lifecycle Verbs" and
+  "RawBisos-Reconstruction: BISOS's CI/CD"); =PriorAndSimilarArt.org=; leaf READMEs; figure.
+- Dockerfiles gained =LABEL org.bisos.hubImage/hubTag= (changes every image ID: rebuild once).
 
-The repo has a three-peer image hierarchy along an *init/isolation profile*
-axis: =confined= (docker, unprivileged, no systemd), =privileged= (docker,
-=--privileged=, systemd PID 1), and =rootless-sysd= (podman, rootless, systemd
-PID 1). Six image specifications across two Debian releases and three profiles.
-
-Verified end-to-end:
-- *deb13 privileged sysd on cgroup v2* (prior session, Debian host) — PASS
-- *deb13 rootless-sysd on cgroup v2* (prior session, Debian host) — PASS
-- *deb13 privileged sysd on cgroup v1* (RHEL 8.10, this session) — PASS (11/11)
-- *bystar home 755 + /tmp exec* confirmed in running deb13 privileged container
-
-Still untested: deb12 variants (same pattern, high confidence); rootless-sysd
-deb12; Quadlet per-engineer path; confined images after rename.
+Next: VM tests driven by this repo's =AI-WorkPlan.org= --- Stage 6 (Debian 13, cgroup v2, both
+ways, [[6.0]]--[[6.7]]) and Stage 7 (RHEL 8, cgroup v1, standalone, [[7.0]]--[[7.5]]), each run by a
+separate Claude on that VM. Prerequisite: this repo, =bisos.fileObj= and =bisos.dockerProc=
+committed and pushed.
 
 * Architecture
 
 ** Directory hierarchy
 
 #+BEGIN_SRC
+common/raw-bisos/                  Raw-BISOS payload, copied into confined build contexts
 debian/
-  <majorRelease>/              12 or 13
-    confined/vnc/xfce/         unprivileged, entrypoint.sh init
-      bisos_deb12-fresh/       (or bisos_deb13-fresh/)
-    privileged/vnc/xfce/       --privileged (docker), systemd PID 1
-      bisos_deb12-sysd/        (or bisos_deb13-sysd/)
-    rootless-sysd/vnc/xfce/    rootless podman, systemd PID 1 (cgroup v2)
-      bisos_deb12-rootless-sysd/ (or bisos_deb13-rootless-sysd/)
+  <majorRelease>/                  12 or 13; ftoBranchProc.spcs (13: ordered branches)
+    confined/vnc/xfce/             unprivileged, entrypoint.sh init
+      bisos_debNN-fresh/
+    privileged/vnc/xfce/           --privileged (docker), systemd PID 1
+      bisos_debNN-sysd/
+      bisos_deb13-sysd-2/          secondary instance: runs bisos_deb13-sysd's image
+    rootless-sysd/vnc/xfce/        rootless podman, systemd PID 1 (cgroup v2)
+      bisos_debNN-rootless-sysd/
+PriorAndSimilarArt.org  figures/
 #+END_SRC
 
-The path structure is not cosmetic --- it is the *configuration substrate* for
-the Stage 5 spcs framework. Each path segment encodes a parameter:
-=debian/<release>/<profile>/vnc/xfce/<imageName>/= → distro, release, profile
-(→ engine/privilege/init), desktop type, image name. The =dockerProc= seed will
-parse =plantOfThisSeed= to derive the full operating context with no per-leaf
-parameter files.
+The path is configuration for the =.spcs= way: =debian/<release>/<profile>/vnc/xfce/<leafName>/=
+→ distro, release, profile (engine/privilege/init), desktop, image name. Container name, host ports
+and (cgroup v1) subnet are read from the leaf's compose / Quadlet file by *both* ways.
 
-** Confined images (=bisos_deb{12,13}-fresh=)
+*Numeric-suffix rule (user):* leaf =<primary>-<N>= is instance N of =../<primary>='s image; only
+the primary builds it. Its compose files have =image: <primary>:latest= and no =build:=.
 
-- Base: =debian:12.12= / =debian:13.1= built from scratch
-- Init: =dockerConf/entrypoint.sh= starts sshd, VNC, noVNC directly; =sleep infinity= keeps container alive
-- VNC xstartup: =dockerConf/xstartup= launches =startxfce4=
-- User: =bystar= created via =useradd= with =chmod 755 /home/bystar= (useradd default is 700)
-- Volume: =./= mounted at =/shuttle/this=; =raw-bisos/= mounted at =$HOME/raw-bisos= at runtime
-- Ports (host): SSH=2222, VNC=5901, noVNC=6901
+** Per-leaf files
 
-** Privileged images (=bisos_deb{12,13}-sysd=)
+| File                             | Purpose                                                   |
+|----------------------------------+-----------------------------------------------------------|
+| =Dockerfile=                     | image; =LABEL org.bisos.hubImage/hubTag= for =-u= upload  |
+| =imageBuild.sh=                  | build (identical in all leaves); =-n= no-cache, =-u= push |
+| =containerManage.sh=             | =[-n] create start stop restart delete status vncPassword= |
+| =verify.sh=                      | (sysd) host-side smoke test, exec-free                    |
+| =docker-compose.yml=             | docker, cgroup v2 (confined: either version)              |
+| =docker-compose.cgv1.yml=        | (privileged) cgroup v1, own bridge network + subnet       |
+| =*.container=                    | (rootless-sysd) Quadlet unit; =containerManage.sh= reads it |
+| =dockerConf/=                    | entrypoint / xstartup / =vncStart.sh= / systemd units     |
+| =dockerProc.spcs= / =podmanProc.spcs= | BISOS way (=bisos.dockerProc=)                       |
+| =README.org=                     | per-leaf usage, both ways                                 |
+| =raw-bisos/=                     | (confined; git-ignored) copied from =common/raw-bisos/=   |
+| =*Proc.control= / =*Proc.status= | (BISOS walks; git-ignored) gate and status log            |
 
-- Base: =FROM bisos_deb12-fresh:latest= (or deb13 equivalent) — layers on confined.
-  Image names match =paramsFromPlantPath()= on BOTH paths; the DockerHub names
-  (=bisos/deb12-sysd-vnc-xfce:1=) are used only by =build.bash -u= (upload).
-- =USER root= immediately after FROM (base ends as =USER bystar=; systemd + build steps need root)
-- Init: =/sbin/init= (systemd PID 1); =STOPSIGNAL SIGRTMIN+3=
-- Services: =vncserver.service=, =novnc.service=, =sshd-container.service=, =tmp-exec.service= installed and enabled
-- =tmp-exec.service=: oneshot that runs =mount -o remount,exec /tmp= early in boot;
-  needed because Docker's tmpfs mounts apply =noexec= by default
-- Suppressed units: udev, getty, plymouth, rescue, initctl
-- Masked: =polkit.service= (fails in containers, would leave systemd =degraded=)
-- docker-compose.yml (v2 host): =privileged: true=, =cgroup: host=, =/sys/fs/cgroup= rw,
-  =/sys/fs/fuse=, tmpfs on =/tmp /run /run/lock /var/log/journal=
-- docker-compose.cgv1.yml (v1 host): =privileged: true=, NO =cgroup: host=,
-  =/sys/fs/cgroup:ro= + =/sys/fs/cgroup/systemd:rw=, container_name suffixed =-cgv1=;
-  includes explicit =networks:= block with =subnet: 10.254.13.0/24= (deb13) to handle
-  hosts where Docker's default bridge pool is exhausted
-- =build.bash=: local build is the DEFAULT; =-u= uploads to DockerHub, =-n= is
-  =--no-cache=, =-d= accepted as a no-op. Fails fast if the =FROM= base is absent.
-- Ports (host): deb12 SSH=2223 VNC=5902 noVNC=6902; deb13 SSH=2224 VNC=5903 noVNC=6903
+** Images
 
-** Rootless-sysd images (=bisos_deb{12,13}-rootless-sysd=)
+- *Confined (=bisos_debNN-fresh=)* --- from =debian:12.12= / =debian:13.1=; =entrypoint.sh= starts
+  sshd, VNC (via =vncStart.sh=), noVNC; =bystar= home 755; =~/raw-bisos= baked in.
+- *Privileged (=bisos_debNN-sysd=)* --- =FROM bisos_debNN-fresh:latest=, =USER root=, systemd PID 1,
+  =STOPSIGNAL SIGRTMIN+3=; units vncserver / novnc / sshd-container / tmp-exec /
+  dev-shm-resize; polkit masked.
+- *Rootless-sysd (=bisos_debNN-rootless-sysd=)* --- same build as privileged; run by
+  =containerManage.sh= as =podman create --systemd=always --stop-signal SIGRTMIN+3=, no
+  =--privileged=; =--isolation=chroot= builds. Needs cgroup v2 with delegation.
 
-- Build identical to privileged sysd (FROM confined + =USER root=, systemd, unit
-  suppression, enabled services, ENTRYPOINT =/sbin/init=). Difference is run-time only.
-- Run: =run.bash= → =podman run --systemd=always=, NO =--privileged=, NO
-  =/sys/fs/cgroup= mount, NO cgroupns. Podman does cgroup delegation + tmpfs itself.
-- Per-engineer multi-tenant form: Quadlet =*.container= unit (=systemctl --user=
-  + =loginctl enable-linger=).
-- =build.bash=: uses =--isolation=chroot= for all podman builds; auto-builds confined
-  base if missing in Podman's store. Same flags as the docker leaves (default local,
-  =-u= upload, =-n= no-cache). NOTE: the old RedHat VMs cannot run podman at all, so
-  these two leaves are off the standalone path's critical use case.
-- =verify.sh=: exec-free (SSH-based); =degraded= is WARN not FAIL.
-- Ports (host): deb12 SSH=2225 VNC=5904 noVNC=6904; deb13 SSH=2226 VNC=5905 noVNC=6905
-- Requires: rootless Podman + crun + cgroup v2 with controller delegation.
-  Does NOT work on cgroup v1.
+** Ports and subnets (in the compose / Quadlet files)
+
+| Leaf                        | SSH  | VNC  | noVNC | cgroup v1 subnet |
+|-----------------------------+------+------+-------+------------------|
+| =bisos_deb12-fresh=         | 2222 | 5901 | 6901  | ---              |
+| =bisos_deb12-sysd=          | 2223 | 5902 | 6902  | 172.16.11.0/24   |
+| =bisos_deb12-rootless-sysd= | 2225 | 5904 | 6904  | --- (v2 only)    |
+| =bisos_deb13-fresh=         | 2228 | 5907 | 6907  | ---              |
+| =bisos_deb13-sysd=          | 2224 | 5903 | 6903  | 172.16.12.0/24   |
+| =bisos_deb13-sysd-2=        | 2227 | 5906 | 6906  | 172.16.13.0/24   |
+| =bisos_deb13-rootless-sysd= | 2226 | 5905 | 6905  | --- (v2 only)    |
 
 ** Host cgroup v1/v2 compatibility
 
-| Profile         | cgroup v1 host                    | cgroup v2 host |
-|-----------------+-----------------------------------+----------------|
-| confined        | works                             | works          |
-| privileged sysd | works via docker-compose.cgv1.yml | works (.yml)   |
-| rootless-sysd   | does not work                     | works          |
+| Profile         | cgroup v1 host                         | cgroup v2 host |
+|-----------------+----------------------------------------+----------------|
+| confined        | works                                  | works          |
+| privileged sysd | standalone only, =docker-compose.cgv1.yml= | works      |
+| rootless-sysd   | does not work                          | works          |
 
-Check with: =stat -fc %T /sys/fs/cgroup= (=cgroup2fs= = v2; =tmpfs= = v1/hybrid).
-RHEL 8 defaults to v1; flip via =grubby ... systemd.unified_cgroup_hierarchy=1= + reboot.
-
-** Stage 5: containerProc spcs framework --- a peer of the bash path
-
-The spcs path sits alongside the per-leaf bash scripts; it does not replace them:
-
-- Docker leaves plant =dockerProc.spcs=; rootless-sysd leaves plant =podmanProc.spcs=
-- Both delegate to =containerProc-seed.cs= in =bisos.dockerProc=
-- The seed parses =plantOfThisSeed= path to derive all operating parameters —
-  no per-leaf configuration files needed
-- Leaf directories contain =Dockerfile=, =dockerConf/= assets, the thin =.spcs=
-  file, *and* the standalone bash scripts --- the latter because =.spcs= needs
-  =bisos.dockerProc= installed, which is impossible on the old RedHat VMs
-
-Path-to-parameter mapping:
-
-| Path segment  | Parameter derived                                                      |
-|---------------+------------------------------------------------------------------------|
-| =debian=      | distro                                                                 |
-| =<release>=   | 12 or 13 → base OS, base image tag                                    |
-| =<profile>=   | =confined= / =privileged= / =rootless-sysd= → engine, init, privilege |
-| =vnc/xfce=    | desktop type → VNC/noVNC ports, xstartup variant                      |
-| =<imageName>= | image name → DockerHub name, container name                           |
-
-Implementation is tracked in =bisos.dockerProc= Stage 1:
-=/bisos/git/auth/bxRepos/bisos-pip/dockerProc/AI-WorkPlan.org=
-
-** Key files per image
-
-| File                                | Purpose                                      |
-|-------------------------------------+----------------------------------------------|
-| =Dockerfile=                        | Image definition                             |
-| =docker-compose.yml=                | Local run config (docker; v2 host)           |
-| =docker-compose.cgv1.yml=           | (privileged) cgroup-v1 host overlay          |
-| =build.bash=                        | Multi-arch build + push; =-d= local, =-n= no-cache |
-| =run.bash=                          | (rootless-sysd) podman run launcher          |
-| =*.container=                       | (rootless-sysd) Podman Quadlet unit          |
-| =verify.sh=                         | (sysd) host-side smoke test                  |
-| =dockerConf/entrypoint.sh=          | (confined) Manual service startup            |
-| =dockerConf/xstartup=               | (confined) VNC → XFCE4 startup              |
-| =dockerConf/vncserver.service=      | (sysd) systemd unit for TigerVNC             |
-| =dockerConf/novnc.service=          | (sysd) systemd unit for noVNC                |
-| =dockerConf/sshd-container.service= | (sysd) systemd unit for sshd                 |
-| =dockerConf/tmp-exec.service=       | (privileged) oneshot: remount /tmp exec      |
-| =raw-bisos/installRawBisos.sh=      | (confined) Bootstraps Raw-BISOS in container |
+=bisos.dockerProc= refuses cgroup v1 (user decision 2026-10-26). Check with
+=stat -fc %T /sys/fs/cgroup= (=cgroup2fs= = v2).
 
 * What Works
 
-- *deb13 privileged sysd on cgroup v2 (Debian host): VERIFIED* — prior session.
-  systemd PID 1, all three services active, SSH/VNC reachable, =verify.sh= all green.
-- *deb13 privileged sysd on cgroup v1 (RHEL 8.10): VERIFIED* — this session.
-  All 11 verify.sh checks pass. =/home/bystar= is 755. =/tmp= is exec (no noexec).
-- *deb13 rootless-sysd on cgroup v2: VERIFIED* — prior session on Debian host.
-- Confined deb12 and deb13 images: complete and consistent.
-- Directory hierarchy: three-peer profile axis, all path references correct.
-- Stage 5 framework: fully designed and documented in AI-WorkPlan.org.
+- *Verified on hosts (user):* deb13 privileged sysd on v2 (Debian) and v1 (RHEL 8.10, 11/11);
+  deb13 rootless-sysd on v2; =bisos_deb13-sysd= and =-sysd-2= with =imageBuild.sh= /
+  =containerManage.sh= on RHEL 8 and Debian 13 (2026-10-26, subnets moved to =172.16.x=).
+- *Checked here without a daemon:* =bash -n= on all scripts; =imageBuild.sh= and =containerManage.sh=
+  in all 7 leaves against fake =docker= / =podman= / =stat= (every verb, =-n=, the refusals:
+  container exists, port in use (real), image missing, subnet overlap, rootless on v1, inside a
+  container (real)); =vncStart.sh= with a stand-in =vncserver=; the BISOS walker over a copy of
+  =debian/= with fake engines.
 
 * What Is Untested
 
-- deb12 privileged sysd: not built/run (deb13 verified on both v1 and v2; deb12
-  is identical pattern, high confidence but unconfirmed).
-- rootless-sysd deb12: same pattern as deb13 rootless-sysd, unconfirmed.
-- rootless-sysd deb13 Quadlet path: =systemctl --user= + linger not exercised.
-- Confined images: not re-tested after the =desktop= → =confined/vnc= rename,
-  though Dockerfile and scripts are unchanged.
-- Stage 5 spcs live commands: =dockerProc.spcs= planted and path-verified in all six leaves;
-  actual =build= / =verify= against a running container not yet exercised end-to-end.
-- Per-leaf bash scripts: not verified on their actual target, an old RedHat VM
-  without BISOS. They have only been exercised on Debian BISOS hosts, where the
-  spcs path is also available.
+On a daemon, everything since 2026-10-26 --- the checklists are this repo's Stages 6 and 7:
+- the five leaves other than sysd / sysd-2 with the new scripts (confined after the LABEL rebuild,
+  deb13-fresh on its new ports, deb12-sysd's new v1 subnet, both rootless leaves via
+  =containerManage.sh=);
+- VNC passwords (set / clear / survives restart / lost on delete);
+- the BISOS walks from =debian/13/= (order, gate, staleness, re-create keeping the password);
+- the Quadlet per-engineer form (=systemctl --user= + linger).
 
 * Key Design Decisions
 
-- *init/isolation profile as the hierarchy dimension* — three peers named by
-  property (=confined=, =privileged=, =rootless-sysd=), not by tool (docker/podman).
+- *init/isolation profile as the hierarchy dimension* --- three peers named by property
+  (=confined=, =privileged=, =rootless-sysd=), not by tool (docker/podman).
+- *rootless-sysd collapses the confined/privileged tradeoff* --- systemd PID 1 with an
+  unprivileged posture, via rootless Podman. Requires cgroup v2.
+- *Privileged/rootless images layer on confined* --- =FROM bisos_debNN-fresh:latest=, so package
+  updates flow through on rebuild.
+- *VNC/noVNC/sshd as systemd units* in the sysd images.
+- *bystar home dir 755*; *tmp-exec.service oneshot* (Docker's =tmpfs:= mounts =/tmp= =noexec=;
+  remounted exec at boot); *=/dev/shm= 2G* (=dev-shm-resize.service=, see the Blee panel).
+- *cgroup: host (v2)*; *cgroup-v1 overlay* (=docker-compose.cgv1.yml=: no =cgroup: host=,
+  =/sys/fs/cgroup:ro= + =/sys/fs/cgroup/systemd:rw=).
+- *Explicit cgroup v1 subnet per leaf, in =172.16.0.0/16=* (was =10.254.x=, moved after on-host
+  verification) --- avoids "all predefined address pools have been fully subnetted";
+  =containerManage.sh create= refuses an overlap with a docker network or host route. Allocation
+  by a registrar is =bisos.dockerProc= Stage 4.
+- *USER root in sysd Dockerfiles*; *polkit masked*; *=--isolation=chroot= for rootless builds*;
+  *verify.sh exec-free*; *graphroot on a large local disk*.
+- *Keep =cgroup_manager = systemd= at RUNTIME (rootless-sysd)* --- =cgroupfs= was tried and the
+  container fails to boot. =podmanHostVerify.cs='s =--cgroup-manager=cgroupfs= advice applies to
+  *build* only; the runtime fix for a missing session is a real login session plus
+  =loginctl enable-linger=.
+- *Debian 12 vs 13 host (rootless-sysd)* --- Podman 4.3.1 needs chroot isolation + exec-free
+  verify; 5.4.2 fixes both. Debian 13 is the primary rootless target.
+- *Two permanent ways, at parity (2026-10-26, user)* --- standalone needs no BISOS and is the
+  only way on the old RedHat VMs; the repo does not depend on =bisos.dockerProc=. A change to one
+  way is mirrored into the other.
+- *Scripts byte-identical in every leaf, everything derived (2026-10-26, user)* --- image = leaf
+  name, engine from the profile, base from =FROM=, container name / ports / subnet from the
+  compose or Quadlet file (the single source), hub name from the Dockerfile =LABEL=.
+- *=create= only creates*; =start= is separate (the BISOS =instanceUp= does both). =create=
+  checks first and changes nothing on any problem; never builds.
+- *Numeric suffix = shared image* (=<primary>-<N>=).
+- *No VNC password is the default; a password is a state* (non-empty
+  =/home/bystar/.config/bisosVncPasswd=), set by =cp= (not =exec=), lost on =delete=. Classic VNC
+  auth: 8 characters, no encryption --- use an SSH tunnel over a network.
+- *Gate and status files are per VM, never pushed* --- one user per VM, each with their own clone.
+- *Raw-BISOS payload copied (=cp=), not symlinked*, from =common/raw-bisos/=.
+- *Path as configuration for the =.spcs= way* --- consistent with the BISOS spcs pattern.
 
-- *rootless-sysd collapses the confined/privileged tradeoff* — systemd PID 1
-  with unprivileged posture, via rootless Podman. Requires cgroup v2.
+* Records Outside This Repo's Import Chain
 
-- *Privileged/rootless images layer on confined* — =FROM bisos/deb{12,13}-fresh-vnc-xfce=
-  so package updates flow through on rebuild; no duplication of apt-get installs.
-
-- *VNC/noVNC/sshd as systemd units* — restart-on-failure, dependency ordering,
-  =systemctl status= visibility. Replaces manual =entrypoint.sh= approach.
-
-- *bystar home dir 755* — =useradd= default is 700; =chmod 755= added to confined
-  Dockerfiles. Privileged/rootless inherit via FROM.
-
-- *tmp-exec.service oneshot* — Docker's =tmpfs:= shorthand applies =noexec= by
-  default. A systemd oneshot running =mount -o remount,exec /tmp= at boot corrects
-  this to match Debian's default. Simpler alternatives (compose long-form tmpfs,
-  tmp.mount.d drop-in) do not work because Docker mounts /tmp before systemd starts.
-
-- *cgroup: host (v2)* — correct Compose key (maps to =--cgroupns=host=); the
-  invalid =cgroupns: host= key was used originally and rejected by the schema.
-
-- *cgroup-v1 overlay* — =docker-compose.cgv1.yml= drops =cgroup: host= and uses
-  classic v1 recipe (=/sys/fs/cgroup:ro= + =/sys/fs/cgroup/systemd:rw=).
-
-- *Explicit subnet in cgv1 compose* — shared hosts exhaust Docker's default bridge
-  pool (172.17--172.31, 192.168/16). Explicit =subnet: 10.254.13.0/24= sidesteps
-  "all predefined address pools have been fully subnetted". Adjust per host.
-
-- *build.bash -n for --no-cache* — Docker layer cache can serve stale layers after
-  Dockerfile changes if intermediate layers are unchanged. =-n= forces a clean build.
-
-- *USER root in sysd Dockerfiles* — confined base ends as =USER bystar=; privileged
-  Dockerfiles need =USER root= right after =FROM= for apt/systemctl build steps.
-
-- *polkit masked* — fails in containers (no seat/active session), leaves systemd
-  =degraded=. Masked in all four sysd Dockerfiles.
-
-- *--isolation=chroot for rootless builds (old Podman)* — Podman 4.3.1 buildah
-  sd-bus failure workaround. Harmless on newer Podman; kept for portability.
-
-- *verify.sh exec-free (rootless-sysd)* — =podman exec= broken on old Podman for
-  systemd containers. Uses host ports + noVNC HTTP + SSH session instead.
-
-- *graphroot on large local disk* — rootless Podman store must not be on near-full
-  or NFS filesystem. Set via =~/.config/containers/storage.conf=.
-
-- *Keep =cgroup_manager = systemd= at RUNTIME (rootless-sysd)* — do NOT switch the
-  runtime cgroup manager to =cgroupfs=; it was tried and the container then fails to
-  boot. Note the trap: =podmanHostVerify.cs= suggests
-  =podman --cgroup-manager=cgroupfs= as a fix when no user systemd/D-Bus session is
-  reachable. That advice applies to *build* only. The correct runtime fix for a
-  missing session is a real user login session (not =su=) plus
-  =loginctl enable-linger=, keeping =cgroup_manager = systemd=.
-
-- *Debian 12 vs 13 host (rootless-sysd)* — Podman 4.3.1 (Debian 12) needs chroot
-  isolation + exec-free verify. Podman 5.4.2 (Debian 13) fixes both.
-
-- *Bash path and spcs path are permanent peers, maintained at parity* — the
-  per-leaf =build.bash= / =run.bash= / =verify.sh= / =docker-compose*.yml= are
-  *required*, not scaffolding. The =.spcs= path needs =bisos.dockerProc=
-  installed; on the old RedHat VMs BISOS cannot be installed at all, so the
-  self-contained bash scripts are the only way to build and run these images
-  there. This is why =bro_dockerfiles= must stay usable standalone, and why a
-  change to either path should be mirrored into the other. *Do not treat the
-  bash scripts as redundant with the spcs commands* — they serve hosts the
-  spcs path cannot reach. Tracked by the =<<BashPathParity>>= TODO in
-  AI-WorkPlan.org.
-
-- *Directory path as configuration (Stage 5)* — the =debian/<release>/<profile>/vnc/xfce/<imageName>/=
-  hierarchy encodes all operating parameters. =dockerProc.spcs= (docker leaves) and
-  =podmanProc.spcs= (rootless-sysd leaves) both delegate to =containerProc-seed.cs=,
-  which parses =plantOfThisSeed= to derive engine, privilege level, ports, base image, etc.
-  No per-leaf parameter files needed. Consistent with the BISOS spcs pattern
-  (=pypiProc.sh=, =djangoProc.spcs=). Implemented in =bisos.dockerProc=.
+- =bisos.dockerProc= =AI-WorkPlan.org= ([[6.1]], Stages 7--11) and =AI-DevStatus.org=: where the
+  2026-10 work on this repo was driven and recorded.
+- =bisos.fileObj= =README.org= "Generic Lifecycle Verbs": the =fto_= vocabulary the walks use.
+- =/bisos/git/bxRepos/blee-binders/evolution/aiActivity-outputs/_nodeBase_/AI-Outputs.org=:
+  PyYAML is not a dependency (compose files parsed by line rules).
 
 # Local Variables:
 # eval: (setq-local toc-org-max-depth 4)

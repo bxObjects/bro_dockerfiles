@@ -18,7 +18,7 @@ Description=BISOS deb12 rootless systemd VNC dev container
 
 [Container]
 Image=bisos/deb12-rootless-sysd-vnc-xfce:1
-ContainerName=bisos-deb12-rootless-sysd
+ContainerName=bisos_deb12-rootless-sysd
 
 # Podman handles cgroup delegation + tmpfs for systemd. No --privileged.
 RunInit=false

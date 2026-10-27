@@ -456,3 +456,14 @@ TSWLatexianTemp*
 # option is specified. Footnotes are the stored in a file with suffix Notes.bib.
 # Uncomment the next line to have this generated file ignored.
 #*Notes.bib
+
+################ bro_dockerfiles #################
+# Per-VM state of bisos.dockerProc's gated walks (one user per VM, each with
+# their own clone): the leaf's gate and status log. Never pushed.
+dockerProc.control
+dockerProc.status
+podmanProc.control
+podmanProc.status
+# The Raw-BISOS payload copied into each confined leaf's build context by
+# imageBuild.sh / containerProc_imageBuild; the source is common/raw-bisos/.
+debian/*/confined/vnc/xfce/*/raw-bisos/

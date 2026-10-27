@@ -17,8 +17,8 @@ services:
     # restart: no
 
     ports:
-      - "2227:22"    # SSH
-      - "5906:5901"    # VNC
-      - "6906:6901"    # NoVNC
+      - "2228:22"    # SSH
+      - "5907:5901"    # VNC
+      - "6907:6901"    # NoVNC
 
 # Just run:: docker compose up -d

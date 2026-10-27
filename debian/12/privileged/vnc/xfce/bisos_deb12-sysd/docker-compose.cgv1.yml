@@ -19,10 +19,12 @@
 # rootless systemd needs cgroup v2 (see rootless-sysd variant). Run with:
 #
 #     docker compose -f docker-compose.cgv1.yml up -d
-#     ./verify.sh mb-deb12-sysd-xfce-cgv1 2223 5902 6902
+#     ./verify.sh
 #
-# Note: if Docker's default bridge pool is exhausted on the host, add an
-# explicit networks: block (see the deb13 cgv1 file for an example).
+# Note: if Docker's default bridge pool is exhausted on the host, the explicit
+# subnet below avoids the "all predefined address pools have been fully
+# subnetted" error. Adjust if 172.16.11.0/24 overlaps something on your host
+# (./containerManage.sh create checks this and refuses if it does).
 
 services:
 
@@ -53,3 +55,16 @@ services:
       - "2223:22"      # SSH
       - "5902:5901"    # VNC
       - "6902:6901"    # NoVNC
+
+    networks:
+      - bisos_deb12_cgv1
+
+networks:
+  bisos_deb12_cgv1:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.16.11.0/24
+
+
+# Just run:: docker compose -f docker-compose.cgv1.yml up -d

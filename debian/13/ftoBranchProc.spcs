@@ -23,9 +23,22 @@ from bisos.fileObj import ftoBranch_seedInfo
 
 from bisos.dockerProc import containerProc_seedInfo
 
+# Walk order: images depend on each other --- the privileged and rootless-sysd images
+# are built FROM the confined one, so confined goes first (fto_prepare /
+# containerProc_imageBuild). Within a profile the walker visits leaves in sorted
+# order, which already puts a primary leaf (bisos_deb13-sysd) before its numbered
+# instances (bisos_deb13-sysd-2); those sit under vnc/xfce/, which has no branch
+# file of its own, so a leavesOrdered here would not reach them.
+branchesOrdered = [
+    "confined",
+    "privileged",
+    "rootless-sysd",
+]
+
 ftoBranch_seedInfo.setup(
     leafExamples=containerProc_seedInfo.walkExamples(),
     leafProcessors=containerProc_seedInfo.leafProcessorNames(),
+    branchesOrdered=branchesOrdered,
 )
 
 # To override autodiscover of membership or ordering (optional), add
