@@ -10,6 +10,9 @@
 #   Templates: /bisos/apps/defaults/ai-templates
 #   Command:   /bisos/pipx/bin/aiActivity.cs -i initiate --activity=custom --noLink=AI-Activity.org
 
+####+BEGIN: b:ai:workflow/driver
+####+END:
+
 ####+BEGIN: b:ai:file/particulars
 * AI Working Context
   Working Directory: /bisos/git/auth/bxRepos/bxObjects/bro_dockerfiles
