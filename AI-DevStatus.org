@@ -196,6 +196,11 @@ On a daemon, everything since 2026-10-26 --- the checklists are this repo's Stag
   auth: 8 characters, no encryption --- use an SSH tunnel over a network.
 - *Gate and status files are per VM, never pushed* --- one user per VM, each with their own clone.
 - *Raw-BISOS payload copied (=cp=), not symlinked*, from =common/raw-bisos/=.
+- *=sysCbmFullyMaterialize.sh= in the payload (2026-11-03)* --- =exec bash -ic 'sysCbmManage.cs
+  -i fullyMaterialize'= (bystar's =.bashrc= skips PATH/nvm for non-interactive shells). Run after
+  =installRawBisos.sh= and a container restart. Driven by =bisos/raw/rebuild= (AI-WorkPlan
+  =<<containerIdentity>>=); BISOS verb =containerProc_exec_sysCbmFullyMaterialize=. Images built
+  before 2026-11-03 lack it: rebuild (=debian/13= =fto_prepare=), then re-create instances.
 - *Path as configuration for the =.spcs= way* --- consistent with the BISOS spcs pattern.
 
 * Records Outside This Repo's Import Chain
@@ -203,6 +208,9 @@ On a daemon, everything since 2026-10-26 --- the checklists are this repo's Stag
 - =bisos.dockerProc= =AI-WorkPlan.org= ([[6.1]], Stages 7--11) and =AI-DevStatus.org=: where the
   2026-10 work on this repo was driven and recorded.
 - =bisos.fileObj= =README.org= "Generic Lifecycle Verbs": the =fto_= vocabulary the walks use.
+- =bisos/raw/rebuild= =AI-WorkPlan.org= =<<containerIdentity>>= / =<<verifyUpFixes>>= and its
+  =AI-DevStatus.org= (2026-11-03): the payload script above; the sysd leaves' =vncserver.service=
+  vs dockerProc verify's stale =vncserver@:1= check (open).
 - =/bisos/git/bxRepos/blee-binders/evolution/aiActivity-outputs/_nodeBase_/AI-Outputs.org=:
   PyYAML is not a dependency (compose files parsed by line rules).
 

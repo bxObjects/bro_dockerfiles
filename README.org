@@ -499,7 +499,7 @@ configuration.
 ** Installing Raw-BISOS Inside a Container
 
 The Raw-BISOS bootstrap payload (=installRawBisos.sh=, =postRawBisos.sh=,
-=raw-bisos.sh=) is *baked into every image* at =~/raw-bisos= --- no host
+=raw-bisos.sh=, =sysCbmFullyMaterialize.sh=) is *baked into every image* at =~/raw-bisos= --- no host
 mount needed. Its single canonical source is =common/raw-bisos/=; =imageBuild.sh= copies it into
 the confined leaf's build context, and the confined =Dockerfile= =COPY=-s it into the image
 (=containerProc_imageBuild= does the same copy). Privileged and rootless-sysd variants inherit
@@ -517,9 +517,24 @@ This downloads and runs the standard bxGenesis Raw-BISOS installer, turning the 
 Raw-BISOS platform. See https://github.com/bxGenesis/start for details. After installation, run
 =postRawBisos.sh= to wire up =~/.bashrc= and set ownership of =/shuttle/this=.
 
+Then, after a restart of the container (so the groups created by the installer take effect),
+materialize the system's capabilities, as bystar:
+
+#+BEGIN_SRC bash
+cd ~/raw-bisos
+bash sysCbmFullyMaterialize.sh    # = sysCbmManage.cs -i fullyMaterialize, in an interactive shell
+#+END_SRC
+
+The script runs =sysCbmManage.cs= through =bash -ic= because bystar's =~/.bashrc= returns early
+for non-interactive shells, before it sets PATH and nvm. The BISOS ways: the leaf verb
+=containerProc_exec_sysCbmFullyMaterialize=, or the =rawBisosCBMs= step of
+=bisos/raw/rebuild/rawBuildContainer.cs=.
+
 *Updating the payload.* Edit files under =common/raw-bisos/= and rebuild the confined image. The
 change flows to privileged and rootless-sysd via their =FROM= inheritance --- rebuild them too if
-you want the update to land in those variants.
+you want the update to land in those variants. One walk does all of a release in order:
+=( cd debian/13 && ./ftoBranchProc.spcs -i fto_prepare )=. Existing containers keep the old
+payload until they are re-created.
 
 * Use With BISOS
 
