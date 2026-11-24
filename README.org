@@ -457,7 +457,9 @@ kept in the container (=/home/bystar/.config/bisosVncPasswd=, read at each VNC s
 image's =/usr/local/bin/vncStart.sh=), survives stop and restart, and is lost on =delete=. Only its
 first 8 characters count, and VNC traffic is not encrypted: across a network, use an SSH tunnel.
 Images built before this was added (2026-10-26) must be rebuilt; =vncPassword set= refuses on
-them.
+them. So must images built before 2026-11-24, which lack =tigervnc-tools=: =vncPassword set=
+makes the password file with the image's own =vncpasswd=, run in a throw-away container of the
+image (never in the running instance), and fails with "vncpasswd failed" without it.
 
 ** Checking a Host for Rootless Podman
 

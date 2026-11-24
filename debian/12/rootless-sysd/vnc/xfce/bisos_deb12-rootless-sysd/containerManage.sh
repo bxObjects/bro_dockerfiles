@@ -478,7 +478,13 @@ case "$VERB" in
           echo "  NOTE:: VNC uses only the first 8 characters of the password."
         fi
         echo "  Running:: <password> | ${genCmnd[*]} > <tmpFile>"
-        printf '%s\n' "$vncPw1" | "${genCmnd[@]}" > "$passwdTmp" || exit 1
+        if ! printf '%s\n' "$vncPw1" | "${genCmnd[@]}" > "$passwdTmp"; then
+          unset vncPw1 vncPw2
+          echo "ERROR: vncpasswd failed in a throw-away container of $IMAGE; nothing changed." >&2
+          echo "       An image without tigervnc-tools has no vncpasswd: rebuild it" >&2
+          echo "       (./imageBuild.sh, its confined base first), then delete and create the instance." >&2
+          exit 1
+        fi
         unset vncPw1 vncPw2
         if [ ! -s "$passwdTmp" ]; then
           echo "ERROR: vncpasswd produced no output; nothing changed." >&2

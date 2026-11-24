@@ -48,6 +48,12 @@ on a daemon* except =bisos_deb13-sysd= / =-sysd-2= standalone, which the user ve
 - Optional VNC passwords (=dockerConf/vncStart.sh= in the confined images, called by every
   =entrypoint.sh= / =vncserver.service=; =containerManage.sh vncPassword set|clear=). Requires
   rebuilding all images. =bisos.dockerProc= Stage 8.
+- 2026-11-24: =tigervnc-tools= added to the VNC install of both confined images (=vncpasswd= is
+  in it; =--no-install-recommends= left it out), so every image needs one more rebuild. The first
+  real run (a VM, 2026-11-23) failed with "vncpasswd produced no output": =set= runs =vncpasswd= in a
+  throw-away container of the *image*, so installing it in the running instance does not help.
+  =containerManage.sh= (all 7) now says so on a failed =vncpasswd=. Driven from
+  =bxGenesis/base= AI-WorkPlan [[3.1.1]].
 - Gated, ordered walks with BISOS: =debian/13/ftoBranchProc.spcs= walks
   =[confined, privileged, rootless-sysd]=; gate/log files =*Proc.control= / =*Proc.status=
   git-ignored. =bisos.dockerProc= Stages 9--10, =bisos.fileObj= Stage 4.
@@ -153,7 +159,8 @@ On a daemon, everything since 2026-10-26 --- the checklists are this repo's Stag
 - the five leaves other than sysd / sysd-2 with the new scripts (confined after the LABEL rebuild,
   deb13-fresh on its new ports, deb12-sysd's new v1 subnet, both rootless leaves via
   =containerManage.sh=);
-- VNC passwords (set / clear / survives restart / lost on delete);
+- VNC passwords (set / clear / survives restart / lost on delete) --- the first VM run failed
+  for want of =tigervnc-tools= (fixed 2026-11-24, not yet built);
 - the BISOS walks from =debian/13/= (order, gate, staleness, re-create keeping the password);
 - the Quadlet per-engineer form (=systemctl --user= + linger).
 

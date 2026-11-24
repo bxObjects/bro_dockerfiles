@@ -59,9 +59,12 @@ RUN apt-get install --no-install-recommends -y \
 # Install the Tiger VNC server, the noVNC server and dbus-x11 depndency.
 # Also rename vnc.html so that the the noVNC server can be accessed
 # more directly.
+# tigervnc-tools has vncpasswd, which "vncPassword set" runs in a throw-away
+# container of this image; --no-install-recommends leaves it out.
 RUN apt-get install -y --no-install-recommends \
         tigervnc-standalone-server \
         tigervnc-common \
+        tigervnc-tools \
         dbus-x11 \
         novnc \
         net-tools \
