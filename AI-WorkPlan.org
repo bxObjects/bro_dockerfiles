@@ -463,7 +463,7 @@ ftoBranchProc.spcs -i fto_forwardToLeaves --cmndName=containerProc_imageBuild --
   =-i <cmndName>= (=fto_csu.py=, =treeRecurse(..., ['-i', cmndName])=); the branch accepts the
   extra option silently. The log showed =docker build= without =--no-cache= and CACHED steps.
   =fto_prepare= has the same limit. Per-leaf =--noCache=true= works. Fix belongs to =bisos.fileObj=.
-  *Fixed 2026-11-23 (uncommitted):* branch walks now pass options they do not declare on to every
+  *Fixed 2026-11-23 (bisos.fileObj 2eb592f, bisos.dockerProc 813b6d3):* branch walks now pass options they do not declare on to every
   leaf and sub-branch (=bisos.fileObj= =fto_csu._leafPassThroughParams()=; its Test 10i), and
   =bisos.dockerProc='s =fto_prepare= honours =--noCache=. Checked live, read-only: from =debian/=,
   =--noCache=true= reached all 7 leaves. Not yet run as a real no-cache build walk.
