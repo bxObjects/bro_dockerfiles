@@ -116,7 +116,7 @@ A first run:
 ** VNC password (optional)
 
 VNC and noVNC have *no password by default*: convenient for local development, and nothing to
-do. To require one for this instance:
+do. To require one for this leaf:
 
 #+BEGIN_SRC bash
 ./containerManage.sh vncPassword set      # asks twice; restarts the container if running
@@ -124,10 +124,12 @@ do. To require one for this instance:
 ./containerManage.sh vncPassword clear    # back to no password
 #+END_SRC
 
-VNC viewers and noVNC then ask for it. The password is kept in the container
-(=/home/bystar/.config/bisosVncPasswd=), so it survives stop and restart and is lost on =delete=.
-Only its first 8 characters count, and VNC traffic is not encrypted: across a network, use an SSH
-tunnel. With BISOS the same is =containerProc_instanceVncPassword set= / =clear=.
+VNC viewers and noVNC then ask for it. The password is kept on the host, in this leaf directory
+(=./bisosVncPasswd=, mode 0600, git-ignored), which the container sees as
+=/shuttle/this/bisosVncPasswd=: it survives stop, restart, =delete= and re-=create=, and image
+rebuilds. No container is needed to set it; a change applies at the container's next start. Only
+its first 8 characters count, and VNC traffic is not encrypted. With BISOS the same is
+=containerProc_instanceVncPassword set= / =clear=.
 
 * Ports and Connecting
 

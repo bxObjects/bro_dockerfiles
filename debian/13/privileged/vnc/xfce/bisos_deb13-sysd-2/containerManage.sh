@@ -50,11 +50,13 @@
 #   status     Show cgroup version, engine, container state, VNC auth and ports.
 #   vncPassword set|clear
 #              VNC has no password by default (convenient for local use).
-#              "set" asks for one and puts it in the container; VNC viewers and
-#              noVNC then ask for it. "clear" goes back to no password. Either
-#              restarts a running container. The password is lost on delete.
+#              "set" asks for one and keeps it in THIS LEAF DIRECTORY on the host
+#              (./bisosVncPasswd, mode 0600, git-ignored); VNC viewers and noVNC
+#              then ask for it. "clear" removes it: back to no password. Either
+#              restarts a running container. The password survives delete,
+#              re-create and image rebuilds; no container is needed to set it.
 #              Only its first 8 characters count, and VNC traffic is not
-#              encrypted: across a network, use an SSH tunnel.
+#              encrypted.
 
 # All paths below are relative to this leaf, wherever the script is run from.
 SELF=$(readlink -f "$0")
@@ -63,9 +65,11 @@ cd "$(dirname "$SELF")" || exit 1
 COMPOSE_FILE_CGV2="docker-compose.yml"
 COMPOSE_FILE_CGV1="docker-compose.cgv1.yml"
 
-# The instance's VNC password, as written by "vncpasswd -f"; missing or empty means no
-# password. Read by /usr/local/bin/vncStart.sh in the image at each VNC start.
-VNC_PASSWD_PATH="/home/bystar/.config/bisosVncPasswd"
+# The leaf's VNC password, as written by "vncpasswd -f", kept on the host in this leaf
+# directory (mode 0600, git-ignored); missing or empty means no password. The container
+# sees it as /shuttle/this/bisosVncPasswd (the leaf is bind-mounted there), and
+# /usr/local/bin/vncStart.sh in the image reads it at each VNC start.
+VNC_PASSWD_FILE="bisosVncPasswd"
 
 usage() {
   sed -n '/^# Usage:/,/^$/s/^# \{0,1\}//p' "$SELF" >&2
@@ -245,16 +249,20 @@ containerExists() { $ENGINE container inspect "$CONTAINER_NAME" >/dev/null 2>&1;
 containerState()  { $ENGINE container inspect -f '{{.State.Status}}' "$CONTAINER_NAME" 2>/dev/null; }
 imageExists()     { $ENGINE image inspect "$IMAGE" >/dev/null 2>&1; }
 
-# vncAuthMode --- "password" if the container holds a non-empty VNC password file,
-# "none" if not. Read with "cp" (a tar stream), which works on a stopped container too.
+# vncAuthMode --- "password" if this leaf holds a non-empty VNC password file, "none" if
+# not. This is the configured mode; a running container applies it at its next (re)start.
 vncAuthMode() {
-  if ! containerExists; then
-    echo "none (no instance yet)"
-    return
+  if [ -s "$VNC_PASSWD_FILE" ]; then
+    local mode
+    mode=$(stat -c %a "$VNC_PASSWD_FILE" 2>/dev/null)
+    if [ "$mode" != "600" ]; then
+      echo "password (./$VNC_PASSWD_FILE; WARNING: mode $mode, expected 600)"
+    else
+      echo "password (./$VNC_PASSWD_FILE)"
+    fi
+  else
+    echo "none"
   fi
-  local bytes
-  bytes=$($ENGINE cp "$CONTAINER_NAME:$VNC_PASSWD_PATH" - 2>/dev/null | tar -xO 2>/dev/null | wc -c)
-  if [ "${bytes:-0}" -gt 0 ]; then echo "password"; else echo "none"; fi
 }
 
 portInUse() {
@@ -443,26 +451,36 @@ case "$VERB" in
     done
     ;;
   vncPassword)
-    requireExists
-    passwdTmp=$(mktemp) || exit 1
-    trap 'rm -f "$passwdTmp"' EXIT
-    # An image built before VNC passwords existed would ignore the file.
-    if ! $ENGINE run --rm --network none --entrypoint test "$IMAGE" -x /usr/local/bin/vncStart.sh; then
-      echo "ERROR: image $IMAGE has no /usr/local/bin/vncStart.sh, so it would ignore a VNC password." >&2
-      if [ -n "$PRIMARY_LEAF" ]; then
-        echo "       Rebuild it: ( cd ../$PRIMARY_LEAF && ./imageBuild.sh ), then delete and create this instance." >&2
-      else
-        echo "       Rebuild it (./imageBuild.sh, its confined base first), then delete and create the instance." >&2
-      fi
-      exit 1
-    fi
+    # The password is kept in this leaf directory on the host: no container is needed.
+    # The container sees it as /shuttle/this/$VNC_PASSWD_FILE at each VNC start.
     if [ "$SUBVERB" == "set" ]; then
+      if ! imageExists; then
+        echo "ERROR: image $IMAGE is not built; its vncpasswd makes the password file." >&2
+        if [ -n "$PRIMARY_LEAF" ]; then
+          echo "       Build it: ( cd ../$PRIMARY_LEAF && ./imageBuild.sh )" >&2
+        else
+          echo "       Build it: ./imageBuild.sh (its confined base first)" >&2
+        fi
+        exit 1
+      fi
+      # An image older than host-side passwords would ignore the file in this leaf.
+      if ! $ENGINE run --rm --network none --entrypoint grep "$IMAGE" -q \
+           /shuttle/this/bisosVncPasswd /usr/local/bin/vncStart.sh 2>/dev/null; then
+        echo "ERROR: image $IMAGE predates VNC passwords kept in the leaf directory," >&2
+        echo "       so its VNC would ignore ./$VNC_PASSWD_FILE." >&2
+        if [ -n "$PRIMARY_LEAF" ]; then
+          echo "       Rebuild it: ( cd ../$PRIMARY_LEAF && ./imageBuild.sh ), then delete and create this instance." >&2
+        else
+          echo "       Rebuild it (./imageBuild.sh, its confined base first), then delete and create the instance." >&2
+        fi
+        exit 1
+      fi
       # The image's own vncpasswd (in a throw-away container) makes the file, so the
       # host needs no VNC tools. The password goes through stdin, never the command line.
       genCmnd=($ENGINE run --rm -i --network none --entrypoint vncpasswd "$IMAGE" -f)
       if [ $DRY_RUN == 1 ]; then
         echo "  Would ask for the new VNC password (twice), then run:"
-        echo "  Would run:: <password> | ${genCmnd[*]} > <tmpFile>"
+        echo "  Would run:: <password> | ${genCmnd[*]} > ./$VNC_PASSWD_FILE  (mode 0600)"
       else
         read -r -s -p "New VNC password: " vncPw1; echo
         read -r -s -p "Same password again: " vncPw2; echo
@@ -477,12 +495,15 @@ case "$VERB" in
         if [ ${#vncPw1} -gt 8 ]; then
           echo "  NOTE:: VNC uses only the first 8 characters of the password."
         fi
-        echo "  Running:: <password> | ${genCmnd[*]} > <tmpFile>"
+        # Written to a 0600 temporary file next to the final one, then renamed into place.
+        passwdTmp=$(umask 077 && mktemp "./.$VNC_PASSWD_FILE.XXXXXX") || exit 1
+        trap 'rm -f "$passwdTmp"' EXIT
+        echo "  Running:: <password> | ${genCmnd[*]} > ./$VNC_PASSWD_FILE  (mode 0600)"
         if ! printf '%s\n' "$vncPw1" | "${genCmnd[@]}" > "$passwdTmp"; then
           unset vncPw1 vncPw2
           echo "ERROR: vncpasswd failed in a throw-away container of $IMAGE; nothing changed." >&2
           echo "       An image without tigervnc-tools has no vncpasswd: rebuild it" >&2
-          echo "       (./imageBuild.sh, its confined base first), then delete and create the instance." >&2
+          echo "       (./imageBuild.sh, its confined base first)." >&2
           exit 1
         fi
         unset vncPw1 vncPw2
@@ -490,20 +511,27 @@ case "$VERB" in
           echo "ERROR: vncpasswd produced no output; nothing changed." >&2
           exit 1
         fi
+        mv -f "$passwdTmp" "$VNC_PASSWD_FILE" || exit 1
+        chmod 600 "$VNC_PASSWD_FILE" || exit 1
       fi
+    else
+      # "clear": no file means no password.
+      runCmnd rm -f "$VNC_PASSWD_FILE" || exit 1
     fi
-    # "clear" copies in an empty file: vncStart.sh then runs VNC with no password.
-    runCmnd $ENGINE cp "$passwdTmp" "$CONTAINER_NAME:$VNC_PASSWD_PATH" || exit 1
-    if [ "$(containerState)" == "running" ]; then
+    state=$(containerState)
+    if [ "$state" == "running" ]; then
       echo "  Restarting $CONTAINER_NAME so that VNC uses the new setting."
       engineRestart || exit 1
-    else
+    elif [ -n "$state" ]; then
       echo "  It takes effect when the container starts."
+    else
+      echo "  It takes effect when the container is created and started."
     fi
     if [ "$SUBVERB" == "set" ]; then
       echo
-      echo "VNC viewers and noVNC now ask for this password. VNC traffic is not encrypted:"
-      echo "across a network, use an SSH tunnel. Back to no password: ./containerManage.sh vncPassword clear"
+      echo "VNC viewers and noVNC now ask for this password. It is kept in ./$VNC_PASSWD_FILE"
+      echo "and survives delete and re-create. VNC traffic is not encrypted."
+      echo "Back to no password: ./containerManage.sh vncPassword clear"
     fi
     ;;
 esac

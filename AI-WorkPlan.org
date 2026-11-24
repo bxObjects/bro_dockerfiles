@@ -11,6 +11,21 @@
 #   Command:   /bisos/pipx/bin/aiActivity.cs -i initiate --activity=custom --noLink=AI-Activity.org
 
 ####+BEGIN: b:ai:workflow/driver
+*  [[elisp:(revert-buffer)][revert-buffer]] | [[elisp:(toggle-read-only)][read/wr]] | [[elisp:(show-all)][Show-All]]  [[elisp:(org-shifttab)][Overview]]  [[elisp:(progn (org-shifttab) (org-content))][Content]] | [[elisp:(delete-other-windows)][(1)]] | [[elisp:(progn (save-buffer) (kill-buffer))][S&Q]] [[elisp:(save-buffer)][Save]] [[elisp:(kill-buffer)][Quit]] [[elisp:(bury-buffer)][Bury]] [[elisp:(magit)][Magit]]
+*  [[elisp:(org-cycle)][AI Workflow Driver :: /bx- commands]]  --  *|E|* Emacs  *|V|* VS Code  *|P|* prompt  *|S|* submitted
+  State     :: (Refresh, on the Info line, shows the session)
+  Info      :: *|E|* [[elisp:(b:ai:workflow/driver/refresh)][Refresh]] | [[elisp:(blee:bnsm:panel-goto "/bisos/panels/bisos-core/bisos-pip/bisos.aiActivity/newStart/_nodeBase_")][Panel]] | [[elisp:(b:vscode:claude/dispatch)][Transient]] | [[elisp:(b:vscode/partnerShow)][partner-show]] | [[file:/bisos/git/bxRepos/blee/vscode-claude/README.org][vscode-claude-README]] | [[file:/bisos/git/bxRepos/bisos-pip/aiActivity/README.org][aiActivity-README]]
+  newStart  :: *|E|* [[bashRun:vscodeClaude-assemble.cs -i fullCheck][setup-check]] | [[bashRun:vscodeClaude-assemble.cs -i fullUpdate][setup]] | [[elisp:(b:vscode/init)][partner-init]]  *|P|* [[aiActivity:session-start][session-start]]  *|S|* [[aiActivity:S=session-start][session-start]]
+  VS Code   :: *|V|* [[elisp:(b:vscode/fileOpen)][Visit]] | [[elisp:(b:vscode/rootOpen)][root-window]]   <- Ctrl+K Ctrl+E: this file in Blee, at its line
+  Session   :: *|E|* [[elisp:(b:vscode:claude/sessionSelect)][select-session]]  *|P|* [[aiActivity:session-start][session-start]] | [[aiActivity:session-report][session-report]]  *|S|* [[aiActivity:S=session-start][session-start]]
+  Activity  :: *|P|* [[aiActivity:activity-reach][activity-reach]] | [[aiActivity:activity-report][activity-report]]  *|S|* [[aiActivity:S=activity-reach][activity-reach]]
+  Read      :: *|P|* [[aiActivity:status-read][status-read]] | [[aiActivity:archive-read][archive-read]] | [[aiActivity:ai-outputs][ai-outputs]]  *|S|* [[aiActivity:S=status-read][status-read]] | [[aiActivity:S=archive-read][archive-read]] | [[aiActivity:S=ai-outputs][ai-outputs]]
+  Work      :: *|P|* [[aiActivity:todo-do][todo-do]] | [[aiActivity:todo-done][todo-done]]  *|S|* [[aiActivity:S=todo-do][todo-do]] | [[aiActivity:S=todo-done][todo-done]]
+  Record    :: *|P|* [[aiActivity:status-update][status-update]] | [[aiActivity:archive-update][archive-update]] | [[aiActivity:context-trim][context-trim]]  *|S|* [[aiActivity:S=status-update][status-update]] | [[aiActivity:S=archive-update][archive-update]]
+  Git       :: *|P|* [[aiActivity:git-uncommitted-list][git-uncommitted-list]] | [[aiActivity:git-commit-msg][git-commit-msg]]  *|S|* [[aiActivity:S=git-uncommitted-list][git-uncommitted-list]] | [[aiActivity:S=git-commit-msg][git-commit-msg]]
+  Close     :: *|P|* [[aiActivity:session-verify][session-verify]] | [[aiActivity:skills-improve][skills-improve]]  *|S|* [[aiActivity:S=git-commit-walk][git-commit-walk]] | [[aiActivity:S=git-pull-list-add][git-pull-list-add]]
+  newResume :: *|E|* [[bashRun:git -C /bxRepos/blee-binders/evolution pull --rebase][outputs-pull]] | [[elisp:(b:ai:workflow/driver/pullListVisit)][pull-list]] | [[bashRun:pipPkgsStatus.cs -i pkgsStatus][pipPkgsStatus]]  *|P|* [[aiActivity:newResume-confirm][newResume-confirm]]  *|S|* [[aiActivity:S=newResume-confirm][newResume-confirm]]
+
 ####+END:
 
 ####+BEGIN: b:ai:file/particulars
@@ -230,7 +245,7 @@ Key facts established:
   audited corporate host, "root can" != "security permits".
 
 
-* Stage 4 TODOs
+* Stage 4 TODOs -- Archived. No longer relevant.
 ** +
 ** Archived. No longer relevant. (Reference subsections above are retained.)
 ** -
@@ -442,6 +457,25 @@ Check: =raw-bisos/= was copied into the confined leaf (and is git-ignored);
 rootless build put =bisos_deb13-fresh= into podman's store too. Then the same for =debian/12/=
 (Debian 12 images on this Debian 13 host).
 ----- AI Results: ------
+2026-11-23, on the user's host (Debian 13, cgroup v2), BISOS way: =cd debian/13 &&
+ftoBranchProc.spcs -i fto_forwardToLeaves --cmndName=containerProc_imageBuild --noCache=true=.
+- *=--noCache= is dropped by the walk:* =bisos.fileObj='s =fto_forwardToLeaves= sends a leaf only
+  =-i <cmndName>= (=fto_csu.py=, =treeRecurse(..., ['-i', cmndName])=); the branch accepts the
+  extra option silently. The log showed =docker build= without =--no-cache= and CACHED steps.
+  =fto_prepare= has the same limit. Per-leaf =--noCache=true= works. Fix belongs to =bisos.fileObj=.
+  *Fixed 2026-11-23 (uncommitted):* branch walks now pass options they do not declare on to every
+  leaf and sub-branch (=bisos.fileObj= =fto_csu._leafPassThroughParams()=; its Test 10i), and
+  =bisos.dockerProc='s =fto_prepare= honours =--noCache=. Checked live, read-only: from =debian/=,
+  =--noCache=true= reached all 7 leaves. Not yet run as a real no-cache build walk.
+- *So the confined build failed on a stale package list:* the Dockerfile runs =apt-get update=
+  only in its first =RUN=; the cached layer listed =libssl3t64= / =openssl-provider-legacy=
+  =3.5.6-1~deb13u2=, since replaced by =3.5.9-1~deb13u1= (old =.deb= URLs: 404), so the
+  =tigervnc-tools= step failed. Fix (not done): =apt-get update &&= in every =RUN apt-get
+  install= of both confined Dockerfiles.
+- The user then rebuilt per leaf; =vncpasswd= present; the old-design password test passed
+  (prompt after =set=), after a re-create had first lost a password --- which led to 6.3's
+  leaf-directory design.
+
 
 ** TODO [#A] <<6.2>> Standalone =containerManage.sh= --- every verb, every check :ai:
 For each leaf of =debian/13/= (then =debian/12/=): =-n create= (prints, changes nothing), =create=,
@@ -459,18 +493,61 @@ Side by side: deb13-sysd and deb13-sysd-2 created and started together; both pas
 (from the Quadlet file), ports 2226/5905/6905. deb13-fresh answers on 2228 (ssh) / 6907 (noVNC).
 ----- AI Results: ------
 
-** TODO [#A] <<6.3>> VNC passwords --- standalone :ai:
-With a running deb13-sysd (and one rootless leaf):
-- No password (default): the VNC server offers security type 1 (None). Probe the RFB handshake:
-  : python3 -c "import socket;s=socket.create_connection(('localhost',5903));v=s.recv(12);s.send(v);n=s.recv(1)[0];print(v,list(s.recv(n)))"
-  → =[1]=.
-- =./containerManage.sh vncPassword set= (type a password twice) → restarts; =status= shows "VNC
-  auth: password"; the probe now prints =[2]= (VncAuth). Over SSH: =ls -l
-  ~/.config/bisosVncPasswd= is owned by =bystar=, mode 0600.
-- Survives =restart=; =vncPassword clear= → back to =[1]=; lost on =delete= + =create=.
-- Refusals: empty password; differing passwords; =-n vncPassword set= asks nothing.
-- If a desktop is at hand (:me:): a VNC viewer and noVNC (=http://localhost:6903/=) prompt for
-  the password, refuse a wrong one, and accept the right one.
+** TODO [#A] <<6.3>> VNC passwords --- kept in the leaf directory (2026-11-23 design) :ai:
+*Design under test* (replaces "password in the container, lost on delete"): the password is
+=<leaf>/bisosVncPasswd= on the host (=vncpasswd -f= format, mode 0600, git-ignored); the container
+reads it as =/shuttle/this/bisosVncPasswd= at each VNC start (=vncStart.sh= copies it via sudo to
+=/run/bisosVncPasswd= for =-rfbauth=). No file = no password. VNC listens on all host interfaces.
+
+*Probe* (RFB handshake; =[1]= = no password, =[2]= = VncAuth), with =<vncPort>= 5903 for
+deb13-sysd, 5906 for sysd-2, 5907 for deb13-fresh, 5905 for rootless:
+: python3 -c "import socket;s=socket.create_connection(('localhost',<vncPort>));v=s.recv(12);s.send(v);n=s.recv(1)[0];print(v,list(s.recv(n)))"
+
+*0. Prerequisite: rebuild the deb13 images* (=vncStart.sh= changed), in one walk --- it now passes
+=--noCache= on to the leaves (6.1's results); this also tests that:
+: ./ftoBranchProc.spcs -i fto_prepare --noCache=true      # at debian/13
+Each leaf's log must show =docker build --no-cache= (=podman build ... --no-cache= for rootless).
+Per leaf, if needed:
+: ( cd confined/vnc/xfce/bisos_deb13-fresh && ./dockerProc.spcs -i containerProc_imageBuild --noCache=true )
+Check: =docker run --rm --entrypoint grep bisos_deb13-sysd -c shuttle/this/bisosVncPasswd
+/usr/local/bin/vncStart.sh= → non-zero count. Then delete every deb13 instance (=./containerManage.sh
+delete=) and remove any =bisosVncPasswd= left in a leaf.
+
+*A. Standalone, deb13-sysd* (=cd privileged/vnc/xfce/bisos_deb13-sysd=):
+1. Default: =./containerManage.sh status= → "VNC auth: none"; =create= + =start=; probe 5903 →
+   =[1]=; inside: =ps -eo args | grep [X]tigervnc= shows =-SecurityTypes None=.
+2. =set= with the instance running (type a password twice) → "Restarting"; =ls -l bisosVncPasswd=
+   in the leaf: host user, =-rw-------=, 8 bytes; =git status= does not list it; =status= → "VNC
+   auth: password (./bisosVncPasswd)"; probe → =[2]=. Inside (SSH or exec): =/run/bisosVncPasswd=
+   is bystar's, 0600; the =Xtigervnc= args show =-SecurityTypes VncAuth -rfbauth /run/bisosVncPasswd=;
+   there is no =~/.config/bisosVncPasswd=.
+3. *Survival (the 2026-11-23 failure):* =restart= → =[2]=; =stop= + =start= → =[2]=; =delete= +
+   =create= + =start= → =[2]= without setting it again.
+4. =set= with *no* instance: =delete=; =set= → "takes effect when the container is created";
+   =create= + =start= → =[2]=.
+5. =clear= on a running instance → restarts; file gone; probe → =[1]=.
+6. Refusals, each changing nothing (no =bisosVncPasswd=, no =.bisosVncPasswd.*= left): empty
+   password; two different passwords; =-n vncPassword set= (prints, asks nothing).
+7. Permission warning: =chmod 644 bisosVncPasswd= → =status= shows "WARNING: mode 644"; =chmod 600=.
+8. A password longer than 8 characters → the NOTE; the first 8 characters are accepted by a viewer.
+
+*B. Secondary leaf, deb13-sysd-2:* with sysd and sysd-2 both running, =set= in sysd-2 only →
+probe 5906 =[2]=, probe 5903 unchanged; two separate files; =clear= in sysd-2 leaves sysd's alone.
+
+*C. Confined, deb13-fresh* (=entrypoint.sh= path, =/run= not a tmpfs there): =set=, =create= +
+=start=, probe 5907 → =[2]=; =clear= → =[1]=.
+
+*D. Rootless, deb13-rootless-sysd* (podman; container root is the host user): =set=, =create= +
+=start=, probe 5905 → =[2]= --- confirms the 0600 host file is readable through sudo under rootless
+uid mapping. (The Quadlet form is out of scope: it mounts =~/shuttle=, not the leaf.)
+
+*E. Snapshot hygiene:* with a password set, =docker commit bisos_deb13-sysd tmp/vnctest= (or
+=containerProc_instanceCommit=); =docker run --rm --entrypoint sh tmp/vnctest -c 'ls
+/run/bisosVncPasswd /home/bystar/.config/bisosVncPasswd'= → both absent; remove the image.
+
+*F. Viewer (:me:):* a VNC viewer on =<host-IP>:5903= and noVNC on =http://<host-IP>:6903/=
+prompt for the password, refuse a wrong one, accept the right one --- also from another machine
+on the LAN (all interfaces).
 ----- AI Results: ------
 
 ** TODO [#A] <<6.4>> With BISOS --- one leaf at a time (=dockerProc.spcs= / =podmanProc.spcs=) :ai:
@@ -483,7 +560,10 @@ with no arguments shows the menu --- check it has "FTO Lifecycle Verbs" and "Sta
   =bisos_deb13-sysd-2= from =bisos_deb13-sysd:latest= on 2227/5906/6906 (=docker ps=).
 - =-i containerProc_instanceDown=, =-i containerProc_instanceRestart=, =-i
   containerProc_instanceDelete=; =Down= / =Restart= refuse when the instance does not exist.
-- =-i containerProc_instanceVncPassword set= / =clear= (same checks as 6.3).
+- =-i containerProc_instanceVncPassword set= / =clear= --- 6.3's A--E with the BISOS command:
+  no instance needed; =instanceStatus= shows "VNC auth: password (./bisosVncPasswd)"; the password
+  survives =instanceDelete= + =instanceUp=. Cross-way: =set= with =./containerManage.sh=, check
+  with =instanceStatus= (same file), and =clear= with the BISOS command, check with =status=.
 - A deprecated alias dispatches: =-i containerProc_build= (warns, builds).
 ----- AI Results: ------
 
@@ -500,8 +580,9 @@ with no arguments shows the menu --- check it has "FTO Lifecycle Verbs" and "Sta
 - Stale: set a VNC password on deb13-sysd (=containerProc_instanceVncPassword set=); rebuild its
   image (=cd privileged/vnc/xfce/bisos_deb13-sysd && ./dockerProc.spcs -i containerProc_imageBuild
   --noCache=true=); =-i fto_forwardToLeaves --cmndName=containerProc_instanceIsStale= → sysd and
-  sysd-2 =stale=. =-i fto_reMaterialize= → both re-created; the VNC password is still set on
-  deb13-sysd (probe =[2]=); =/shuttle/this= content intact.
+  sysd-2 =stale=. =-i fto_reMaterialize= → both re-created; deb13-sysd still asks for the password
+  (probe =[2]=; it comes from the leaf directory now, nothing is carried over), sysd-2 does not
+  (=[1]=); =/shuttle/this= content intact.
 - =-i fto_verify=, =-i fto_status=, =-i fto_statusLog= (one line per run, matching the summaries).
 - =-i fto_clean= with instances up → refused in deb13-sysd ("containers still use"); =-i
   fto_unMaterialize= → the enabled leaves' instances (sysd, sysd-2) deleted; =-i fto_clean= again →

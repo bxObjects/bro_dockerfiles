@@ -101,10 +101,10 @@ A first run, after the primary leaf has built the image:
 ** VNC password (optional)
 
 VNC and noVNC have *no password by default*. =./containerManage.sh vncPassword set= gives this
-instance one (it asks twice, and restarts the container if it runs); =vncPassword clear= goes back
-to none; =status= shows "VNC auth: none | password". The password is kept in this instance's
-container, independent of the primary's, and is lost on =delete=. Only its first 8 characters
-count, and VNC traffic is not encrypted: across a network, use an SSH tunnel.
+leaf one (it asks twice, and restarts the container if it runs); =vncPassword clear= goes back to
+none; =status= shows "VNC auth: none | password". The password is kept on the host in this leaf
+directory (=./bisosVncPasswd=, mode 0600, git-ignored), independent of the primary's, and survives
+=delete= and re-=create=. Only its first 8 characters count, and VNC traffic is not encrypted.
 
 * Ports and Connecting
 

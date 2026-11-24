@@ -48,6 +48,22 @@ on a daemon* except =bisos_deb13-sysd= / =-sysd-2= standalone, which the user ve
 - Optional VNC passwords (=dockerConf/vncStart.sh= in the confined images, called by every
   =entrypoint.sh= / =vncserver.service=; =containerManage.sh vncPassword set|clear=). Requires
   rebuilding all images. =bisos.dockerProc= Stage 8.
+- 2026-11-23: *the VNC password moved to the host's leaf directory* (user decision, replacing
+  "a password is a state of the container"): =<leaf>/bisosVncPasswd=, 0600, git-ignored, read by
+  =vncStart.sh= from =/shuttle/this= at each VNC start (copied via sudo to =/run/bisosVncPasswd=).
+  Survives delete / re-create / rebuild; =set= needs no container. Changed: both =vncStart.sh=,
+  all 7 =containerManage.sh=, =.gitignore=, READMEs; =bisos.dockerProc= the same. Why: the first
+  live test (2026-11-23) lost a password set just before a re-create, and every new container
+  started password-less on all interfaces. =vncStart.sh= logic checked in throw-away containers;
+  rebuilt images and the VM run are Stage 6 [[6.3]] / [[6.4]] (rewritten for this).
+- 2026-11-23: *image builds through a walk*, found on the user's host ([[6.1]]'s results).
+  (1) A walked =--noCache=true= was dropped --- fixed the same day in =bisos.fileObj= (branch walks
+  pass options they do not declare on to every leaf; its AI-WorkPlan 4.8) and =bisos.dockerProc=
+  (=fto_prepare= honours =--noCache=); so =./ftoBranchProc.spcs -i fto_prepare --noCache=true= at
+  =debian/13= now rebuilds without cache (checked read-only, not yet as a real build). (2) *Open:*
+  a cached confined build can fail on a stale package list --- the confined Dockerfiles run
+  =apt-get update= only in their first =RUN=, and Debian had replaced a cached package version
+  (404). Fix: =apt-get update &&= in every =RUN apt-get install= of both confined Dockerfiles.
 - 2026-11-24: =tigervnc-tools= added to the VNC install of both confined images (=vncpasswd= is
   in it; =--no-install-recommends= left it out), so every image needs one more rebuild. The first
   real run (a VM, 2026-11-23) failed with "vncpasswd produced no output": =set= runs =vncpasswd= in a
@@ -159,10 +175,12 @@ On a daemon, everything since 2026-10-26 --- the checklists are this repo's Stag
 - the five leaves other than sysd / sysd-2 with the new scripts (confined after the LABEL rebuild,
   deb13-fresh on its new ports, deb12-sysd's new v1 subnet, both rootless leaves via
   =containerManage.sh=);
-- VNC passwords (set / clear / survives restart / lost on delete) --- the first VM run failed
-  for want of =tigervnc-tools= (fixed 2026-11-24, not yet built);
+- VNC passwords, leaf-directory design (2026-11-23): set / clear / survives restart, delete,
+  re-create and rebuild --- needs every image rebuilt (new =vncStart.sh=); [[6.3]] / [[6.4]]. The
+  old design was verified on 2026-11-23 after the =tigervnc-tools= rebuild (set → prompt);
 - the BISOS walks from =debian/13/= (order, gate, staleness, re-create keeping the password);
 - the Quadlet per-engineer form (=systemctl --user= + linger).
+- a real =fto_prepare --noCache=true= walk ([[6.3]] step 0); the stale-=apt= fix (not written).
 
 * Key Design Decisions
 
@@ -198,9 +216,13 @@ On a daemon, everything since 2026-10-26 --- the checklists are this repo's Stag
 - *=create= only creates*; =start= is separate (the BISOS =instanceUp= does both). =create=
   checks first and changes nothing on any problem; never builds.
 - *Numeric suffix = shared image* (=<primary>-<N>=).
-- *No VNC password is the default; a password is a state* (non-empty
-  =/home/bystar/.config/bisosVncPasswd=), set by =cp= (not =exec=), lost on =delete=. Classic VNC
-  auth: 8 characters, no encryption --- use an SSH tunnel over a network.
+- *No VNC password is the default; the password is per leaf, kept in the leaf directory on the
+  host (2026-11-23, user; replaces "a state of the container, lost on delete" of 2026-10-26)* ---
+  =<leaf>/bisosVncPasswd=, 0600, git-ignored (per host, like the gate files). Read by
+  =vncStart.sh= through the =/shuttle/this= bind mount at each VNC start; survives delete,
+  re-create and rebuilds. VNC stays on all host interfaces (user: convenient here; no forced
+  tunnel). Classic VNC auth: 8 characters, no encryption. Not covered: the rootless Quadlet form
+  (mounts =~/shuttle=, not the leaf).
 - *Gate and status files are per VM, never pushed* --- one user per VM, each with their own clone.
 - *Raw-BISOS payload copied (=cp=), not symlinked*, from =common/raw-bisos/=.
 - *=sysCbmFullyMaterialize.sh= in the payload (2026-11-03)* --- =exec bash -ic 'sysCbmManage.cs
@@ -218,6 +240,9 @@ On a daemon, everything since 2026-10-26 --- the checklists are this repo's Stag
 - =bisos/raw/rebuild= =AI-WorkPlan.org= =<<containerIdentity>>= / =<<verifyUpFixes>>= and its
   =AI-DevStatus.org= (2026-11-03): the payload script above; the sysd leaves' =vncserver.service=
   vs dockerProc verify's stale =vncserver@:1= check (open).
+- =bisos.fileObj= =AI-WorkPlan.org= 4.8 and =AI-DevStatus.org= (2026-11-23): branch walks pass
+  leaf options (=--noCache=) on --- the fix for [[6.1]]'s dropped =--noCache=. Git-tracked;
+  checked read-only on this tree the same day.
 - =/bisos/git/bxRepos/blee-binders/evolution/aiActivity-outputs/_nodeBase_/AI-Outputs.org=:
   PyYAML is not a dependency (compose files parsed by line rules).
 

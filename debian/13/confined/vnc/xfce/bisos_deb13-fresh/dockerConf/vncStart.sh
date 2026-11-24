@@ -1,34 +1,41 @@
 #!/bin/bash
 #
 # vncStart.sh --- Start the TigerVNC server: with no password (the default), or with the
-# instance's VNC password if one has been set.
+# VNC password kept in the host's leaf directory.
 #
 # Installed in the confined image at /usr/local/bin/vncStart.sh and inherited by the sysd
 # images. Called by the confined entrypoint.sh and by the sysd images' vncserver.service, as
 # the desktop user (bystar).
 #
-# The password file is /home/bystar/.config/bisosVncPasswd, in the format of "vncpasswd -f".
-# It is put there by "containerManage.sh vncPassword set" (bro_dockerfiles) or
-# "containerProc_instanceVncPassword set" (bisos.dockerProc), with docker/podman cp, so it
-# arrives owned by root: it is made bystar's (mode 0600) here, through passwordless sudo.
-# "vncPassword clear" copies in an empty file. So:
-#   file missing or empty  -> no password (-SecurityTypes None)
-#   file non-empty         -> VNC password (-SecurityTypes VncAuth -rfbauth <file>)
-# noVNC (websockify) needs no change: it prompts whenever the VNC server asks for a password.
+# The password lives on the HOST, in the leaf directory: <leaf>/bisosVncPasswd, in the
+# format of "vncpasswd -f", mode 0600, git-ignored. Every leaf bind-mounts its directory at
+# /shuttle/this, so it survives delete, re-create and image rebuilds. It is written by
+# "containerManage.sh vncPassword set|clear" (bro_dockerfiles) or
+# "containerProc_instanceVncPassword set|clear" (bisos.dockerProc). So:
+#   host file missing or empty  -> no password (-SecurityTypes None)
+#   host file non-empty         -> VNC password (-SecurityTypes VncAuth -rfbauth <copy>)
+# It is read at each VNC start: a change takes effect when the container (re)starts.
+#
+# The host file belongs to the host user, not to bystar, so it is copied through
+# passwordless sudo to /run/bisosVncPasswd (bystar's, mode 0600). /run is a tmpfs in the
+# sysd containers: the copy is never in the container's writable layer or in a committed
+# snapshot. noVNC (websockify) needs no change: it prompts whenever the VNC server asks.
 #
 # Usage: vncStart.sh [display] [vncserver options...]
 #   e.g. vncStart.sh :1 -localhost no -geometry 1920x1080 -depth 16
 
-passwdFile="$HOME/.config/bisosVncPasswd"
+hostPasswdFile="/shuttle/this/bisosVncPasswd"
+runPasswdFile="/run/bisosVncPasswd"
 
-if [ -e "$passwdFile" ] && [ ! -O "$passwdFile" ]; then
-  sudo -n chown "$(id -u):$(id -g)" "$passwdFile" && sudo -n chmod 600 "$passwdFile"
+sudo -n rm -f "$runPasswdFile"
+if sudo -n test -s "$hostPasswdFile"; then
+  if sudo -n install -m 600 -o "$(id -u)" -g "$(id -g)" "$hostPasswdFile" "$runPasswdFile"; then
+    echo "vncStart.sh: VNC auth: password (from $hostPasswdFile)"
+    exec /usr/bin/vncserver "$@" -SecurityTypes VncAuth -rfbauth "$runPasswdFile"
+  fi
+  # A password was asked for but cannot be used: refuse rather than fall back to none.
+  echo "vncStart.sh: ERROR: cannot copy $hostPasswdFile to $runPasswdFile; VNC not started." >&2
+  exit 1
 fi
-
-if [ -s "$passwdFile" ]; then
-  echo "vncStart.sh: VNC auth: password ($passwdFile)"
-  exec /usr/bin/vncserver "$@" -SecurityTypes VncAuth -rfbauth "$passwdFile"
-else
-  echo "vncStart.sh: VNC auth: none"
-  exec /usr/bin/vncserver "$@" -SecurityTypes None --I-KNOW-THIS-IS-INSECURE
-fi
+echo "vncStart.sh: VNC auth: none"
+exec /usr/bin/vncserver "$@" -SecurityTypes None --I-KNOW-THIS-IS-INSECURE

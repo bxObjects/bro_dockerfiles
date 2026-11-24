@@ -467,3 +467,7 @@ podmanProc.status
 # The Raw-BISOS payload copied into each confined leaf's build context by
 # imageBuild.sh / containerProc_imageBuild; the source is common/raw-bisos/.
 debian/*/confined/vnc/xfce/*/raw-bisos/
+# The leaf's VNC password (containerManage.sh / containerProc_instanceVncPassword
+# vncPassword set): per host, mode 0600, never pushed; and its temporary file.
+bisosVncPasswd
+.bisosVncPasswd.*
