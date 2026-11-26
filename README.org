@@ -537,7 +537,9 @@ bash sysCbmFullyMaterialize.sh    # = sysCbmManage.cs -i fullyMaterialize, in an
 #+END_SRC
 
 The script runs =sysCbmManage.cs= through =bash -ic= because bystar's =~/.bashrc= returns early
-for non-interactive shells, before it sets PATH and nvm. The BISOS ways: the leaf verb
+for non-interactive shells, before it sets PATH and nvm. As =raw-bisos.sh= does, it also writes all
+its output to =~/sysCbmFullyMaterialize-<yymmddHHMMSS>-log.org=, and exits with =sysCbmManage.cs='s
+exit code. The BISOS ways: the leaf verb
 =containerProc_exec_sysCbmFullyMaterialize=, or the =rawBisosCBMs= step of
 =bisos/raw/rebuild/rawBuildContainer.cs=.
 
