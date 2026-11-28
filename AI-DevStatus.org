@@ -232,6 +232,9 @@ On a daemon, everything since 2026-10-26 --- the checklists are this repo's Stag
   before 2026-11-03 lack it: rebuild (=debian/13= =fto_prepare=), then re-create instances.
   Since 2026-11-26 it logs as =raw-bisos.sh= does (=exec &> >(tee ~/sysCbmFullyMaterialize-<dateTag>-log.org)=)
   and runs =bash -ic= without =exec=, so it can report the exit code; images built before lack the log.
+  Since 2026-11-28 it is a wrapper that execs =/bisos/core/raw/bin/sysCbmFullyMaterialize.sh=
+  (bisos/raw, the one copy for every platform; bisos/raw rebuild AI-WorkPlan =<<3.3>>=). Older images
+  keep the full script and still work; rebuilt ones need a bisos/raw that has it.
 - *Path as configuration for the =.spcs= way* --- consistent with the BISOS spcs pattern.
 
 * Records Outside This Repo's Import Chain

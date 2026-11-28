@@ -536,10 +536,11 @@ cd ~/raw-bisos
 bash sysCbmFullyMaterialize.sh    # = sysCbmManage.cs -i fullyMaterialize, in an interactive shell
 #+END_SRC
 
-The script runs =sysCbmManage.cs= through =bash -ic= because bystar's =~/.bashrc= returns early
-for non-interactive shells, before it sets PATH and nvm. As =raw-bisos.sh= does, it also writes all
-its output to =~/sysCbmFullyMaterialize-<yymmddHHMMSS>-log.org=, and exits with =sysCbmManage.cs='s
-exit code. The BISOS ways: the leaf verb
+Since 2026-11-28 this copy only runs =/bisos/core/raw/bin/sysCbmFullyMaterialize.sh= (from
+bisos/raw), the one copy for containers, boxes and guests. That script runs =sysCbmManage.cs=
+through =bash -ic= because bystar's =~/.bashrc= returns early for non-interactive shells, before it
+sets PATH and nvm. As =raw-bisos.sh= does, it also writes all its output to
+=~/sysCbmFullyMaterialize-<yymmddHHMMSS>-log.org=, and exits with =sysCbmManage.cs='s exit code. The BISOS ways: the leaf verb
 =containerProc_exec_sysCbmFullyMaterialize=, or the =rawBisosCBMs= step of
 =bisos/raw/rebuild/rawBuildContainer.cs=.
 
@@ -749,7 +750,7 @@ rawBuildContainer.cs -i procContainer --freshDeb="13" --platformModel="sysd-priv
 
 The container variant complements the *Vagrant-based variant* in =bxGenesis/start= (heavier;
 full-release validation). Containers are one of three reconstruction substrates:
-=/bisos/core/raw/rebuild= provides =rawBuildContainer.cs= for containers, =rawBuildKvm.cs= for KVM
+=/bisos/core/raw/rebuild= provides =rawBuildContainer.cs= for containers, =rawBuildGuest.cs= for KVM
 guests and =rawBuildBox.cs= for raw metal. The =rawBuild*= family deliberately does not use the
 walker: its sibling commands target a KVM guest by =bpoId= and a box by IP address, and have no
 tree to walk.
